@@ -9,6 +9,9 @@ out
 .env.*.local
 .env.local
 
+# local storage credentials (do not commit)
+storage-info.txt
+
 # IDE / tooling
 .cursor
 .vscode

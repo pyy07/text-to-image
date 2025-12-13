@@ -56,7 +56,7 @@
    - 应用名称
    - 应用简介
    - 应用官网
-   - **授权回调域名**：填写你的域名（如：`svg-generator.227studio.cn`）
+   - **授权回调域名**：填写你的域名（如：`text-to-image.227studio.cn`）
 5. 提交审核（通常需要 1-3 个工作日）
 
 ### 2. 获取 AppID 和 AppSecret
