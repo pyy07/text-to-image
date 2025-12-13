@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 0, 0, 0;
+    --background-end-rgb: 0, 0, 0;
+  }
+}
+
+html {
+  height: auto !important;
+  min-height: 100vh;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  /* 全站最底层背景：固定橙色，避免被注入内容污染 */
+  background-color: rgb(255, 167, 38) !important;
+  background-image: none !important;
+  background: rgb(255, 167, 38) !important;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  /* 全站最底层背景：固定橙色，避免被注入内容污染 */
+  background-color: rgb(255, 167, 38) !important;
+  background-image: none !important;
+  background: rgb(255, 167, 38) !important;
+  min-height: 100vh;
+  height: auto !important;
+  overflow-y: visible !important;
+  overflow-x: hidden !important;
+}
+
+/* 兜底：防止任何地方把背景图/渐变挂到 html/body 上 */
+html, body {
+  background-image: none !important;
+}
+
