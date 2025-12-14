@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import Image from 'next/image'
 
 interface NavigationProps {
   user?: {
@@ -73,6 +74,16 @@ export default function Navigation({ user, onLogout }: NavigationProps) {
                 登录
               </Link>
             )}
+            <div className="hidden sm:block">
+              <Image
+                src="/logo.png"
+                alt="Logo"
+                width={160}
+                height={80}
+                className="h-16 w-auto object-contain"
+                priority
+              />
+            </div>
           </div>
         </div>
         {/* 移动端导航菜单 */}
