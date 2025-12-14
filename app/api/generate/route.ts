@@ -158,13 +158,10 @@ export async function POST(request: NextRequest) {
       })
     }
   } catch (error: any) {
-    // 详细错误信息记录在服务器日志中
-    console.error('生成内容错误:', error)
-    console.error('错误详情:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-    })
+    // 只在开发环境输出详细错误日志
+    if (process.env.NODE_ENV === 'development') {
+      console.error('生成内容错误:', error)
+    }
     
     // 返回用户友好的错误信息（不包含技术细节）
     const userFriendlyMessage = error.message || '生成失败，请稍后重试'

@@ -97,6 +97,44 @@ export async function generateImage(
 }
 
 /**
+ * 图片编辑/以图改图（首期：整体改图）
+ */
+export async function editImage(
+  inputImageUrl: string,
+  prompt: string,
+  options?: {
+    provider?: AIProvider
+    model?: string
+    size?: string
+  }
+): Promise<{ imageUrl: string; mimeType?: string }> {
+  const provider = options?.provider || getDefaultProvider()
+
+  if (!provider) {
+    throw new Error('没有配置任何 AI Provider，请在环境变量中配置 AI_PROVIDERS')
+  }
+
+  if (!isProviderAllowed(provider)) {
+    throw new Error(`Provider ${provider} 未在配置文件中启用`)
+  }
+
+  const providerInstance = getAIProvider(provider)
+
+  if (!providerInstance.isConfigured()) {
+    throw new Error(`${provider} Provider 未配置，请检查环境变量`)
+  }
+
+  if (options?.model && !isModelAllowed(provider, options.model)) {
+    throw new Error(`模型 ${options.model} 未在配置文件中启用`)
+  }
+
+  return providerInstance.editImage(inputImageUrl, prompt, {
+    model: options?.model,
+    size: options?.size,
+  })
+}
+
+/**
  * 兼容旧接口：generateContent / generateSVG 已弃用。
  * 仍保留导出以避免历史代码引用时报错，但会直接抛出提示。
  */

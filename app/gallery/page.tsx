@@ -90,56 +90,71 @@ export default function GalleryPage() {
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                     {assets.map((asset) => (
-                      <Link
+                      <div
                         key={asset.id}
-                        href={`/assets/${asset.id}`}
                         className="group bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-200"
                       >
-                        <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center p-3 overflow-hidden relative">
-                          {/* 类型角标（更醒目，不影响布局） */}
-                          <span
-                            className={`absolute left-0 top-0 z-10 px-2.5 py-1 text-[11px] font-bold tracking-wide text-white rounded-br-lg shadow-md ${
-                              asset.type === 'image' || !asset.type ? 'bg-green-600' : 'bg-gray-600'
-                            }`}
-                          >
-                            {asset.type === 'svg' ? 'SVG' : asset.type === 'html' ? 'H5' : 'IMG'}
-                          </span>
-                          <div className="w-full h-full rounded-md overflow-hidden bg-white/80 backdrop-blur-sm flex items-center justify-center">
-                            {asset.imageUrl ? (
-                              <img
-                                src={asset.imageUrl}
-                                alt={asset.description}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="text-gray-500 text-sm">无预览</div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="p-3 sm:p-4">
-                          <p className="text-xs sm:text-sm text-gray-700 line-clamp-2 mb-2 group-hover:text-blue-600 transition-colors">
-                            {asset.description}
-                          </p>
-                          <div className="text-xs text-gray-500 space-y-1">
-                            {asset.provider && (
-                              <p>
-                                {asset.provider === 'gemini' ? 'Gemini' : asset.provider === 'openai' ? 'OpenAI' : asset.provider}
-                                {asset.model && ` · ${asset.model}`}
-                              </p>
-                            )}
-                            <div className="flex items-center justify-between">
-                              <span>
-                                {new Date(asset.createdAt).toLocaleDateString('zh-CN')}
-                              </span>
-                              {asset.user?.nickname && (
-                                <span className="text-gray-400">
-                                  @{asset.user.nickname}
-                                </span>
+                        <Link href={`/assets/${asset.id}`} className="block">
+                          <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center p-3 overflow-hidden relative">
+                            {/* 类型角标（更醒目，不影响布局） */}
+                            <span
+                              className={`absolute left-0 top-0 z-10 px-2.5 py-1 text-[11px] font-bold tracking-wide text-white rounded-br-lg shadow-md ${
+                                asset.type === 'image' || !asset.type ? 'bg-green-600' : 'bg-gray-600'
+                              }`}
+                            >
+                              {asset.type === 'svg' ? 'SVG' : asset.type === 'html' ? 'H5' : 'IMG'}
+                            </span>
+                            <div className="w-full h-full rounded-md overflow-hidden bg-white/80 backdrop-blur-sm flex items-center justify-center">
+                              {asset.imageUrl ? (
+                                <img
+                                  src={asset.imageUrl}
+                                  alt={asset.description}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="text-gray-500 text-sm">无预览</div>
                               )}
                             </div>
                           </div>
-                        </div>
-                      </Link>
+                          <div className="p-3 sm:p-4">
+                            <p className="text-xs sm:text-sm text-gray-700 line-clamp-2 mb-2 group-hover:text-blue-600 transition-colors">
+                              {asset.description}
+                            </p>
+                            <div className="text-xs text-gray-500 space-y-1">
+                              {asset.provider && (
+                                <p>
+                                  {asset.provider === 'gemini' ? 'Gemini' : asset.provider === 'openai' ? 'OpenAI' : asset.provider}
+                                  {asset.model && ` · ${asset.model}`}
+                                </p>
+                              )}
+                              <div className="flex items-center justify-between">
+                                <span>
+                                  {new Date(asset.createdAt).toLocaleDateString('zh-CN')}
+                                </span>
+                                {asset.user?.nickname && (
+                                  <span className="text-gray-400">
+                                    @{asset.user.nickname}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </Link>
+                        {asset.imageUrl && (
+                          <div className="px-3 sm:px-4 pb-3 sm:pb-4">
+                            <Link
+                              href={`/?editImageUrl=${encodeURIComponent(asset.imageUrl)}`}
+                              className="block w-full px-3 py-2 text-xs sm:text-sm text-center bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                              onClick={(e) => {
+                                // 阻止事件冒泡，避免触发父 Link
+                                e.stopPropagation()
+                              }}
+                            >
+                              修改
+                            </Link>
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
 

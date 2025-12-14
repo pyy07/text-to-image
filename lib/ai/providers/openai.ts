@@ -25,6 +25,7 @@ export class OpenAIProvider implements AIProviderInterface {
     model: string
     prompt: string
     size: string
+    imageUrls?: string[]
   }): Promise<{ imageUrl: string; mimeType?: string }> {
     // 参考 ModelScope 文档的 API-Inference 示例：
     // - base_url = 'https://api-inference.modelscope.cn/'
@@ -40,16 +41,28 @@ export class OpenAIProvider implements AIProviderInterface {
       'Content-Type': 'application/json',
     }
 
-    const { width, height } = this.parseSize(args.size)
     const body: any = {
       model: args.model, // ModelScope Model-Id，例如 Tongyi-MAI/Z-Image-Turbo
       prompt: args.prompt,
     }
-    if (width && height) {
-      body.width = width
-      body.height = height
+    // 兼容 Qwen-Image-Edit-2509：传入输入图 URL 列表即可进行整体改图
+    if (args.imageUrls && args.imageUrls.length > 0) {
+      // ModelScope 编辑接口文档明确要求使用 image_url（URL 数组）
+      // 参考：https://modelscope.csdn.net/691c36ee82fbe0098caca391.html
+      // 如果 ModelScope 无法访问 URL（例如 Vercel Blob 需要认证），再 fallback 到 base64
+      body.image_url = args.imageUrls
+      // 编辑模式：尽量只传必需字段，避免服务端对 size/width/height 校验不一致导致任务失败
+    } else {
+      // 文生图模式：支持 size / width / height
+      const { width, height } = this.parseSize(args.size)
+      if (args.size) body.size = args.size
+      if (width && height) {
+        body.width = width
+        body.height = height
+      }
     }
 
+    
     const createRes = await fetch(`${base}v1/images/generations`, {
       method: 'POST',
       headers: { ...headers, 'X-ModelScope-Async-Mode': 'true' },
@@ -95,8 +108,17 @@ export class OpenAIProvider implements AIProviderInterface {
       }
 
       if (status === 'FAILED') {
-        const msg = taskJson?.message || taskJson?.error || ''
-        throw new Error(`ModelScope 图像生成失败：${msg || 'FAILED'}`)
+        const msg = taskJson?.message || taskJson?.error || taskJson?.msg || ''
+        const keys = taskJson && typeof taskJson === 'object' ? Object.keys(taskJson).join(',') : ''
+        const detail = (() => {
+          try {
+            // 避免过长：截断
+            return JSON.stringify(taskJson).slice(0, 800)
+          } catch {
+            return ''
+          }
+        })()
+        throw new Error(`ModelScope 图像生成失败：${msg || 'FAILED'}${keys ? `；response keys=${keys}` : ''}${detail ? `；detail=${detail}` : ''}`)
       }
 
       // 继续轮询（RUNNING/QUEUED/UNKNOWN 等）
@@ -210,7 +232,10 @@ export class OpenAIProvider implements AIProviderInterface {
 
       return { imageUrl, mimeType: 'image/png' }
     } catch (error: any) {
-      console.error('OpenAI 兼容图片生成错误:', error)
+      // 只在开发环境输出详细错误日志
+      if (process.env.NODE_ENV === 'development') {
+        console.error('OpenAI 兼容图片生成错误:', error)
+      }
       const status = error?.status
       const msg = error?.message || '未知错误'
 
@@ -236,6 +261,56 @@ export class OpenAIProvider implements AIProviderInterface {
 
       throw new Error(`图片生成失败，请稍后重试（${msg}）`)
     }
+  }
+
+  async editImage(
+    inputImageUrl: string,
+    prompt: string,
+    options?: { model?: string; size?: string }
+  ): Promise<{ imageUrl: string; mimeType?: string }> {
+    if (!this.client || !this.apiKey) {
+      throw new Error('OpenAI 兼容接口未配置，请设置 OPENAI_API_KEY')
+    }
+
+    // 编辑功能必须使用编辑模型，不能使用文生图模型
+    const availableModels = this.getAvailableModels()
+    let modelName = options?.model || process.env.OPENAI_MODEL || 'Qwen/Qwen-Image-Edit-2509'
+    
+    // 如果配置了模型白名单，优先从白名单中选择编辑模型
+    if (availableModels.length > 0) {
+      const editModel = availableModels.find((m) => /edit/i.test(m))
+      if (editModel) {
+        // 如果用户传的模型不是编辑模型，强制切换到编辑模型
+        if (!/edit/i.test(modelName)) {
+          modelName = editModel
+        }
+      } else {
+        // 如果白名单里没有编辑模型，但用户传的是文生图模型，使用默认编辑模型（即使不在白名单里）
+        if (!/edit/i.test(modelName)) {
+          modelName = 'Qwen/Qwen-Image-Edit-2509'
+        }
+        // 如果用户传的已经是编辑模型（即使不在白名单里），允许使用
+      }
+    } else {
+      // 如果没有配置白名单，使用默认编辑模型
+      if (!/edit/i.test(modelName)) {
+        modelName = 'Qwen/Qwen-Image-Edit-2509'
+      }
+    }
+
+    const size = options?.size || process.env.OPENAI_IMAGE_SIZE || '1024x1024'
+
+    // 首期：仅支持 ModelScope API-Inference 的整体改图（Qwen-Image-Edit-2509）
+    if (this.isModelScopeInference()) {
+      return await this.generateImageViaModelScopeInference({
+        model: modelName,
+        prompt,
+        size,
+        imageUrls: [inputImageUrl],
+      })
+    }
+
+    throw new Error('当前 Provider 暂未实现图片编辑/以图改图（仅支持 ModelScope API-Inference）')
   }
 }
 

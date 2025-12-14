@@ -41,4 +41,29 @@ export async function uploadImageUrlToVercelBlob(args: {
   return { url: uploaded.url }
 }
 
+export async function uploadImageBufferToVercelBlob(args: {
+  buffer: Buffer
+  mimeType: string
+  prefix?: string
+  ext?: string
+}): Promise<{ url: string }> {
+  const token = process.env.BLOB_READ_WRITE_TOKEN
+  if (!token) {
+    throw new Error('未配置 Vercel Blob：请设置 BLOB_READ_WRITE_TOKEN')
+  }
+
+  const ext = (args.ext || extFromMime(args.mimeType)).replace(/^\./, '')
+  const prefix = (args.prefix || 'uploads').replace(/^\/+|\/+$/g, '')
+  const filename = `${prefix}/${crypto.randomUUID()}.${ext}`
+
+  const uploaded = await put(filename, args.buffer, {
+    access: 'public',
+    contentType: args.mimeType,
+    token,
+    addRandomSuffix: false,
+  })
+
+  return { url: uploaded.url }
+}
+
 

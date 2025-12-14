@@ -42,6 +42,23 @@ export interface AIProviderInterface {
   }>
 
   /**
+   * 编辑/以图改图（整体改图，首期不包含 mask）
+   * @param inputImageUrl 输入图片 URL（可为 Blob URL）
+   * @param prompt 编辑指令（prompt）
+   */
+  editImage(
+    inputImageUrl: string,
+    prompt: string,
+    options?: {
+      model?: string
+      size?: string
+    }
+  ): Promise<{
+    imageUrl: string
+    mimeType?: string
+  }>
+
+  /**
    * 检查配置是否有效
    */
   isConfigured(): boolean

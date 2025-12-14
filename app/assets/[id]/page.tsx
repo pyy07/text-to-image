@@ -148,7 +148,7 @@ export default function AssetDetailPage() {
                 </div>
 
                 <div className="mb-4 sm:mb-6">
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                     <button
                       onClick={handleCopy}
                       className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors flex items-center gap-2"
@@ -169,16 +169,26 @@ export default function AssetDetailPage() {
                         </>
                       )}
                     </button>
-                    {asset.imageUrl && (
-                      <a
-                        href={asset.imageUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-                      >
-                        下载/打开
-                      </a>
-                    )}
+                    <div className="flex gap-2">
+                      {asset.imageUrl && (
+                        <>
+                          <Link
+                            href={`/?editImageUrl=${encodeURIComponent(asset.imageUrl)}`}
+                            className="px-3 py-1.5 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                          >
+                            修改
+                          </Link>
+                          <a
+                            href={asset.imageUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                          >
+                            下载/打开
+                          </a>
+                        </>
+                      )}
+                    </div>
                   </div>
                   {asset.imageUrl && (
                     <details>

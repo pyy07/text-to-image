@@ -4,13 +4,13 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 const apiKey = process.env.GOOGLE_AI_API_KEY
 
 if (!apiKey) {
-  console.warn('警告: GOOGLE_AI_API_KEY 未配置，请在 .env 文件中设置')
+  // 移除配置警告日志
 }
 
 // 检查代理配置
 const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || process.env.PROXY
 if (proxyUrl) {
-  console.log('检测到代理配置:', proxyUrl.replace(/\/\/.*@/, '//***@')) // 隐藏密码
+  // 移除代理配置日志
   // Node.js 18+ 的 fetch (undici) 会自动使用 HTTPS_PROXY 和 HTTP_PROXY 环境变量
   // 确保环境变量已设置
   if (!process.env.HTTPS_PROXY && proxyUrl.startsWith('http')) {
@@ -20,7 +20,7 @@ if (proxyUrl) {
     process.env.HTTP_PROXY = proxyUrl
   }
 } else {
-  console.warn('提示: 未检测到代理配置，如果无法连接 Google API，请在 .env 中设置 HTTPS_PROXY 或 HTTP_PROXY')
+  // 移除代理提示日志
 }
 
 const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null
@@ -38,7 +38,7 @@ export async function generateSVG(description: string): Promise<string> {
   // - gemini-pro（通用版本）
   // 可以通过环境变量 GEMINI_MODEL 自定义模型名称
   const modelName = process.env.GEMINI_MODEL || 'gemini-3-pro-preview'
-  console.log('使用模型:', modelName)
+  // 移除模型使用日志
   const model = genAI.getGenerativeModel({ model: modelName })
 
   const prompt = `你是一个专业的 SVG 动画设计师。根据用户的描述，生成一个完整的、可运行的 SVG 动画代码。

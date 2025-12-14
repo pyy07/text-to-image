@@ -21,6 +21,7 @@ export default function Home() {
   const [allowAnonymous, setAllowAnonymous] = useState(false)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [imageLoading, setImageLoading] = useState(false)
+  const [uploadingImage, setUploadingImage] = useState(false)
 
   useEffect(() => {
     // 检查是否允许匿名访问
@@ -63,6 +64,31 @@ export default function Home() {
         setLoading(false)
       }
     }
+
+    // 检查 URL 参数中是否有 editImageUrl 或 editAssetId
+    const editImageUrl = urlParams.get('editImageUrl')
+    const editAssetId = urlParams.get('editAssetId')
+    
+    if (editImageUrl) {
+      // 直接使用 URL 参数中的图片地址
+      setImageUrl(decodeURIComponent(editImageUrl))
+      // 清除 URL 参数
+      window.history.replaceState({}, '', window.location.pathname)
+    } else if (editAssetId) {
+      // 通过 assetId 获取图片地址
+      fetch(`/api/assets/${editAssetId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.asset?.imageUrl) {
+            setImageUrl(data.asset.imageUrl)
+          }
+        })
+        .catch((error) => {
+          console.error('获取素材信息失败:', error)
+        })
+      // 清除 URL 参数
+      window.history.replaceState({}, '', window.location.pathname)
+    }
   }, [])
 
   const fetchUserInfo = async (userId: string) => {
@@ -104,6 +130,29 @@ export default function Home() {
     }
   }
 
+  const handleImageUpload = async (file: File) => {
+    setUploadingImage(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/uploads/image', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '上传失败')
+      // API 返回的是 inputImageUrl 字段
+      if (typeof data.inputImageUrl === 'string' && data.inputImageUrl) {
+        // 上传后直接放到预览里：此时"有图即修改"
+        setImageUrl(data.inputImageUrl)
+      } else {
+        throw new Error('上传成功但未返回图片地址')
+      }
+    } catch (error: any) {
+      console.error('图片上传失败:', error)
+      alert(error.message || '上传失败，请稍后重试')
+    } finally {
+      setUploadingImage(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="h-screen overflow-hidden flex flex-col">
@@ -136,7 +185,12 @@ export default function Home() {
                 {/* 预览区域 - 移动端在上，桌面端在左 */}
                 <div className="flex-1 bg-white p-3 sm:p-6 flex flex-col border-b lg:border-b-0 lg:border-r border-gray-200 order-1 min-h-0">
                   <div className="flex-1 bg-white rounded-lg border border-gray-300 overflow-hidden shadow-sm min-h-[320px] sm:min-h-[420px] lg:min-h-0 flex flex-col">
-                    <ImagePreview imageUrl={imageUrl} loading={imageLoading} />
+                    <ImagePreview 
+                      imageUrl={imageUrl} 
+                      loading={imageLoading} 
+                      onImageUpload={handleImageUpload}
+                      uploading={uploadingImage}
+                    />
                   </div>
                 </div>
 

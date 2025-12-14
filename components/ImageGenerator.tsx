@@ -11,6 +11,8 @@ interface ImageGeneratorProps {
   imageUrl?: string | null
   onImageGenerated?: (imageUrl: string) => void
   onLoadingChange?: (loading: boolean) => void
+  onImageUpload?: (file: File) => void
+  uploadingImage?: boolean
 }
 
 interface Provider {
@@ -30,6 +32,8 @@ export default function ImageGenerator({
   imageUrl,
   onImageGenerated,
   onLoadingChange,
+  onImageUpload,
+  uploadingImage = false,
 }: ImageGeneratorProps) {
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
@@ -134,15 +138,98 @@ export default function ImageGenerator({
     }
   }
 
+  const hasPreview = !!imageUrl
+
+  const handleEdit = async () => {
+    if (!description.trim()) {
+      setError('请输入编辑指令')
+      return
+    }
+
+    if (!imageUrl) {
+      setError('当前没有预览图片，无法修改。请先生成或上传一张图片。')
+      return
+    }
+
+    if (!allowAnonymous) {
+      if (!isLoggedIn || !userId) {
+        setError('请先登录后再编辑图片')
+        onLoginRequest()
+        return
+      }
+
+      if (currentRemaining === 0 && remaining !== -1) {
+        setError('使用次数已用完')
+        return
+      }
+    }
+
+    setLoading(true)
+    setError(null)
+    onLoadingChange?.(true)
+
+    try {
+      const response = await fetch('/api/edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description,
+          userId: userId || undefined,
+          provider: selectedProvider || undefined,
+          model: selectedModel || undefined,
+          size,
+          inputImageUrl: imageUrl,
+        }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        if (response.status === 401) {
+          setError('请先登录后再编辑图片')
+          onLoginRequest()
+          return
+        }
+        throw new Error(data.error || '编辑失败')
+      }
+
+      if (typeof data.imageUrl === 'string' && data.imageUrl) {
+        onImageGenerated?.(data.imageUrl)
+      } else {
+        throw new Error('编辑成功但未返回图片地址')
+      }
+
+      if (data.remaining !== undefined) {
+        setCurrentRemaining(data.remaining)
+      }
+
+      setDescription('')
+    } catch (err: any) {
+      setError(err.message || '编辑失败，请稍后重试')
+    } finally {
+      setLoading(false)
+      onLoadingChange?.(false)
+    }
+  }
+
+  const handlePrimaryAction = async () => {
+    // 预览有图 → 修改；无图 → 生成
+    if (hasPreview) return await handleEdit()
+    return await handleGenerate()
+  }
+
   return (
     <div className="w-full h-full flex flex-col">
       <div className="mb-4 sm:mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">图片描述</label>
+        <label className="block text-sm font-medium text-gray-700 mb-2">{hasPreview ? '编辑指令' : '图片描述'}</label>
         <div className="relative">
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="描述你想生成的图片，越详细越好。例如：'赛博朋克夜景街道，霓虹灯反射在雨水路面，电影感灯光，高清细节。'"
+            placeholder={
+              hasPreview
+                ? "描述你想如何修改这张图。例如：'把天空改成黄昏，并增加柔和的橙色光晕。'"
+                : "描述你想生成的图片，越详细越好。例如：'赛博朋克夜景街道，霓虹灯反射在雨水路面，电影感灯光，高清细节。'"
+            }
             className="w-full p-3 sm:p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50 resize-none text-sm sm:text-base"
             rows={5}
             maxLength={500}
@@ -227,7 +314,7 @@ export default function ImageGenerator({
       <div className="space-y-2.5 sm:space-y-3">
         <div className="flex flex-col sm:flex-row gap-2">
           <button
-            onClick={handleGenerate}
+            onClick={handlePrimaryAction}
             disabled={
               loading ||
               !description.trim() ||
@@ -239,12 +326,12 @@ export default function ImageGenerator({
             {loading ? (
               <>
                 <span className="animate-spin">⚡</span>
-                <span>生成中...</span>
+                <span>{hasPreview ? '编辑中...' : '生成中...'}</span>
               </>
             ) : (
               <>
                 <span>⚡</span>
-                <span>开始生成图片</span>
+                <span>{hasPreview ? '基于预览图修改' : '开始生成图片'}</span>
               </>
             )}
           </button>

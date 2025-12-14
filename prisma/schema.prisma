@@ -30,6 +30,12 @@ model Asset {
   id          String   @id @default(cuid())
   userId      String?
   description String
+  // 资产操作类型：生成(generate) 或 编辑(edit)
+  operation   String   @default("generate")
+  // 编辑来源：若基于已有素材编辑，记录其 Asset ID
+  sourceAssetId String?
+  // 编辑来源：若基于上传图片编辑，记录输入图 URL（通常也是 Blob URL）
+  inputImageUrl String? @db.Text
   // 历史字段：曾用于保存 SVG/HTML 代码。文生图后保留以兼容旧数据。
   svgCode     String?  @db.Text
   // 内容类型：当前仅使用 image（旧数据可能为 svg/html）
@@ -43,6 +49,8 @@ model Asset {
   createdAt   DateTime @default(now())
 
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  sourceAsset Asset? @relation("AssetSource", fields: [sourceAssetId], references: [id], onDelete: SetNull)
+  derivedAssets Asset[] @relation("AssetSource")
 
   @@map("assets")
 }

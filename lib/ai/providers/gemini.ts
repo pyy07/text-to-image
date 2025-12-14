@@ -32,5 +32,9 @@ export class GeminiProvider implements AIProviderInterface {
   async generateImage(): Promise<{ imageUrl: string; mimeType?: string }> {
     throw new Error('Gemini Provider 暂不支持文生图（当前项目使用 OpenAI 兼容接口 + modelscope z-image）')
   }
+
+  async editImage(): Promise<{ imageUrl: string; mimeType?: string }> {
+    throw new Error('Gemini Provider 暂不支持图片编辑/以图改图')
+  }
 }
 
