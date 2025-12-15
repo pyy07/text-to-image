@@ -61,9 +61,7 @@ export default function ImageComposer({
     onCompleted: (task) => {
       if (task.resultImageUrl) {
         onImageGenerated?.(task.resultImageUrl)
-        // 清空已选择的图片
-        setSelectedImages([])
-        onInputImagesChange?.([])
+        // 保留已选择的图片，不清空
       }
       setCurrentTaskId(null)
       setLoading(false)
