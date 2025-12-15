@@ -98,9 +98,10 @@ export async function generateImage(
 
 /**
  * 图片编辑/以图改图（首期：整体改图）
+ * 支持单张或多张图片输入
  */
 export async function editImage(
-  inputImageUrl: string,
+  inputImageUrl: string | string[],
   prompt: string,
   options?: {
     provider?: AIProvider
@@ -126,6 +127,26 @@ export async function editImage(
 
   if (options?.model && !isModelAllowed(provider, options.model)) {
     throw new Error(`模型 ${options.model} 未在配置文件中启用`)
+  }
+
+  // 如果传入的是数组，支持多图合成
+  if (Array.isArray(inputImageUrl)) {
+    if (inputImageUrl.length === 0) {
+      throw new Error('至少需要提供一张输入图片')
+    }
+    // 如果只有一张图，降级为单图编辑
+    if (inputImageUrl.length === 1) {
+      return providerInstance.editImage(inputImageUrl[0], prompt, {
+        model: options?.model,
+        size: options?.size,
+      })
+    }
+    // 多图合成：使用 editImage 但传入多图 URL 数组
+    return providerInstance.editImage(inputImageUrl[0], prompt, {
+      model: options?.model,
+      size: options?.size,
+      inputImageUrls: inputImageUrl, // 传递多图参数
+    } as any)
   }
 
   return providerInstance.editImage(inputImageUrl, prompt, {

@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import ImageGenerator from '@/components/ImageGenerator'
+import ImageComposer from '@/components/ImageComposer'
 import ImagePreview from '@/components/ImagePreview'
 import Navigation from '@/components/Navigation'
+import TaskList from '@/components/TaskList'
 
 interface User {
   id: string
@@ -19,9 +21,14 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [allowAnonymous, setAllowAnonymous] = useState(false)
-  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [imageUrl, setImageUrl] = useState<string | null>(null) // 输出图片
   const [imageLoading, setImageLoading] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
+  const [activeTab, setActiveTab] = useState<'generate' | 'compose'>('generate')
+  // 输入图片状态
+  const [inputImageUrl, setInputImageUrl] = useState<string | null>(null) // 单张输入图片（修改模式）
+  const [inputImageUrls, setInputImageUrls] = useState<string[]>([]) // 多张输入图片（合成模式）
+  const [previewMode, setPreviewMode] = useState<'generate' | 'edit' | 'compose'>('generate')
 
   useEffect(() => {
     // 检查是否允许匿名访问
@@ -140,8 +147,12 @@ export default function Home() {
       if (!res.ok) throw new Error(data.error || '上传失败')
       // API 返回的是 inputImageUrl 字段
       if (typeof data.inputImageUrl === 'string' && data.inputImageUrl) {
-        // 上传后直接放到预览里：此时"有图即修改"
-        setImageUrl(data.inputImageUrl)
+        // 上传后：在文生图模式下，有图即切换到修改模式
+        if (activeTab === 'generate') {
+          setInputImageUrl(data.inputImageUrl)
+          setImageUrl(data.inputImageUrl)
+          setPreviewMode('edit')
+        }
       } else {
         throw new Error('上传成功但未返回图片地址')
       }
@@ -150,6 +161,37 @@ export default function Home() {
       alert(error.message || '上传失败，请稍后重试')
     } finally {
       setUploadingImage(false)
+    }
+  }
+
+  const handleModeChange = (mode: 'generate' | 'edit', inputUrl?: string | null) => {
+    setPreviewMode(mode)
+    if (mode === 'generate') {
+      setInputImageUrl(null)
+      // 如果切换到生成模式，也清除输出图片
+      if (!inputUrl) {
+        setImageUrl(null)
+      }
+    } else {
+      setInputImageUrl(inputUrl || null)
+    }
+  }
+
+  const handleInputImagesChange = (urls: string[]) => {
+    setInputImageUrls(urls)
+    setPreviewMode('compose')
+  }
+
+  const handleTabChange = (tab: 'generate' | 'compose') => {
+    setActiveTab(tab)
+    if (tab === 'generate') {
+      // 切换到文生图模式，清除合成相关的输入图片
+      setInputImageUrls([])
+      setPreviewMode('generate')
+    } else {
+      // 切换到合成模式
+      setPreviewMode('compose')
+      setInputImageUrl(null)
     }
   }
 
@@ -187,8 +229,11 @@ export default function Home() {
                   <div className="flex-1 bg-white rounded-lg border border-gray-300 overflow-hidden shadow-sm min-h-[320px] sm:min-h-[420px] lg:min-h-0 flex flex-col">
                     <ImagePreview 
                       imageUrl={imageUrl} 
+                      inputImageUrl={inputImageUrl}
+                      inputImageUrls={inputImageUrls.length > 0 ? inputImageUrls : undefined}
                       loading={imageLoading} 
-                      onImageUpload={handleImageUpload}
+                      mode={previewMode}
+                      onImageUpload={activeTab === 'generate' ? handleImageUpload : undefined}
                       uploading={uploadingImage}
                     />
                   </div>
@@ -197,19 +242,64 @@ export default function Home() {
                 {/* 控制面板 - 移动端在下，桌面端在右 */}
                 <div className="w-full lg:w-96 bg-white border-t lg:border-t-0 lg:border-l border-gray-200 order-2">
                   <div className="p-3 sm:p-6 h-full flex flex-col">
-                    <ImageGenerator
-                      userId={user?.id}
-                      remaining={user?.remaining ?? 0}
-                      isLoggedIn={!!user}
-                      allowAnonymous={allowAnonymous}
-                      onLoginRequest={handleWechatLogin}
-                      imageUrl={imageUrl}
-                      onImageGenerated={(url) => {
-                        setImageUrl(url || null)
-                        setImageLoading(false)
-                      }}
-                      onLoadingChange={(loading) => setImageLoading(loading)}
-                    />
+                    {/* 任务列表 */}
+                    {user?.id && <TaskList userId={user.id} />}
+                    
+                    {/* 标签页切换 */}
+                    <div className="mb-4 flex gap-2 border-b border-gray-200">
+                      <button
+                        onClick={() => handleTabChange('generate')}
+                        className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+                          activeTab === 'generate'
+                            ? 'text-orange-600 border-b-2 border-orange-600'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        文生图
+                      </button>
+                      <button
+                        onClick={() => handleTabChange('compose')}
+                        className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+                          activeTab === 'compose'
+                            ? 'text-orange-600 border-b-2 border-orange-600'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        合成
+                      </button>
+                    </div>
+
+                    {/* 根据标签页显示不同组件 */}
+                    {activeTab === 'generate' ? (
+                      <ImageGenerator
+                        userId={user?.id}
+                        remaining={user?.remaining ?? 0}
+                        isLoggedIn={!!user}
+                        allowAnonymous={allowAnonymous}
+                        onLoginRequest={handleWechatLogin}
+                        imageUrl={imageUrl}
+                        onImageGenerated={(url) => {
+                          setImageUrl(url || null)
+                          setImageLoading(false)
+                        }}
+                        onLoadingChange={(loading) => setImageLoading(loading)}
+                        onModeChange={handleModeChange}
+                      />
+                    ) : (
+                      <ImageComposer
+                        userId={user?.id}
+                        remaining={user?.remaining ?? 0}
+                        isLoggedIn={!!user}
+                        allowAnonymous={allowAnonymous}
+                        onLoginRequest={handleWechatLogin}
+                        onImageGenerated={(url) => {
+                          setImageUrl(url || null)
+                          setImageLoading(false)
+                        }}
+                        onLoadingChange={(loading) => setImageLoading(loading)}
+                        onInputImagesChange={handleInputImagesChange}
+                      />
+                    )}
                   </div>
                 </div>
               </div>

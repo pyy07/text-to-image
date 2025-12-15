@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTaskPolling } from '@/lib/hooks/useTaskPolling'
 
 interface ImageGeneratorProps {
   userId?: string
@@ -13,6 +14,7 @@ interface ImageGeneratorProps {
   onLoadingChange?: (loading: boolean) => void
   onImageUpload?: (file: File) => void
   uploadingImage?: boolean
+  onModeChange?: (mode: 'generate' | 'edit', inputImageUrl?: string | null) => void
 }
 
 interface Provider {
@@ -34,6 +36,7 @@ export default function ImageGenerator({
   onLoadingChange,
   onImageUpload,
   uploadingImage = false,
+  onModeChange,
 }: ImageGeneratorProps) {
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
@@ -43,6 +46,7 @@ export default function ImageGenerator({
   const [selectedProvider, setSelectedProvider] = useState<string>('')
   const [selectedModel, setSelectedModel] = useState<string>('')
   const [size, setSize] = useState<string>(SIZES[0])
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/providers')
@@ -139,6 +143,32 @@ export default function ImageGenerator({
   }
 
   const hasPreview = !!imageUrl
+  const currentMode = hasPreview ? 'edit' : 'generate'
+
+  // 轮询任务状态
+  const { task: pollingTask, isPolling } = useTaskPolling({
+    taskId: currentTaskId,
+    userId,
+    onCompleted: (task) => {
+      if (task.resultImageUrl) {
+        onImageGenerated?.(task.resultImageUrl)
+      }
+      setCurrentTaskId(null)
+      setLoading(false)
+      onLoadingChange?.(false)
+    },
+    onFailed: (task) => {
+      setError(task.error || '任务失败')
+      setCurrentTaskId(null)
+      setLoading(false)
+      onLoadingChange?.(false)
+    },
+  })
+
+  // 通知父组件模式变化
+  useEffect(() => {
+    onModeChange?.(currentMode, hasPreview ? imageUrl : null)
+  }, [currentMode, imageUrl, hasPreview, onModeChange])
 
   const handleEdit = async () => {
     if (!description.trim()) {
@@ -189,23 +219,19 @@ export default function ImageGenerator({
           onLoginRequest()
           return
         }
-        throw new Error(data.error || '编辑失败')
+        throw new Error(data.error || '创建任务失败')
       }
 
-      if (typeof data.imageUrl === 'string' && data.imageUrl) {
-        onImageGenerated?.(data.imageUrl)
+      // 异步任务：保存任务 ID 并开始轮询
+      if (data.taskId) {
+        setCurrentTaskId(data.taskId)
+        // 轮询会在 useTaskPolling hook 中处理
+        // 不在这里设置 loading=false，等待任务完成
       } else {
-        throw new Error('编辑成功但未返回图片地址')
+        throw new Error('未返回任务 ID')
       }
-
-      if (data.remaining !== undefined) {
-        setCurrentRemaining(data.remaining)
-      }
-
-      setDescription('')
     } catch (err: any) {
-      setError(err.message || '编辑失败，请稍后重试')
-    } finally {
+      setError(err.message || '创建任务失败，请稍后重试')
       setLoading(false)
       onLoadingChange?.(false)
     }
@@ -323,10 +349,16 @@ export default function ImageGenerator({
             }
             className="flex-1 px-6 py-3.5 sm:py-4 min-h-[52px] sm:min-h-[56px] bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg hover:from-orange-600 hover:to-red-600 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed transition-all font-medium flex items-center justify-center gap-2 shadow-lg text-sm sm:text-base touch-manipulation whitespace-nowrap"
           >
-            {loading ? (
+            {loading || isPolling ? (
               <>
                 <span className="animate-spin">⚡</span>
-                <span>{hasPreview ? '编辑中...' : '生成中...'}</span>
+                <span>
+                  {isPolling && pollingTask?.status === 'processing'
+                    ? '处理中...'
+                    : hasPreview
+                    ? '编辑中...'
+                    : '生成中...'}
+                </span>
               </>
             ) : (
               <>
@@ -338,7 +370,10 @@ export default function ImageGenerator({
 
           {imageUrl && (
             <button
-              onClick={() => onImageGenerated?.('')}
+              onClick={() => {
+                onImageGenerated?.('')
+                onModeChange?.('generate', null)
+              }}
               disabled={loading}
               className="sm:w-40 w-full px-4 py-3.5 sm:py-4 min-h-[52px] sm:min-h-[56px] text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-manipulation whitespace-nowrap"
               title="清除当前预览"

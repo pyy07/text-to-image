@@ -22,6 +22,7 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   assets Asset[]
+  tasks  Task[]
 
   @@map("users")
 }
@@ -53,5 +54,30 @@ model Asset {
   derivedAssets Asset[] @relation("AssetSource")
 
   @@map("assets")
+}
+
+model Task {
+  id            String   @id @default(cuid())
+  userId        String?
+  type          String   // 'edit' | 'compose'
+  status        String   @default("pending") // 'pending' | 'processing' | 'completed' | 'failed' | 'expired'
+  description   String   @db.Text
+  inputImageUrls String  @db.Text // JSON 数组存储输入图片 URL
+  resultImageUrl String? @db.Text
+  resultAssetId String?
+  error         String?  @db.Text
+  provider      String?
+  model         String?
+  size          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  expiresAt     DateTime // 30 分钟后过期
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+  @@index([expiresAt])
+  @@map("tasks")
 }
 

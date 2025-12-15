@@ -9,7 +9,7 @@ import { uploadImageUrlToVercelBlob } from '@/lib/storage/vercel-blob'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { description, userId, provider, model, size, inputImageUrl, sourceAssetId } = body
+    const { description, userId, provider, model, size, inputImageUrl, inputImageUrls, sourceAssetId, sourceAssetIds } = body
 
     if (!description || typeof description !== 'string') {
       return NextResponse.json({ error: '编辑指令不能为空' }, { status: 400 })
@@ -34,31 +34,50 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    let resolvedInputUrl: string | null = null
-    let resolvedSourceAssetId: string | null = null
+    // 支持多图输入
+    let resolvedInputUrls: string[] = []
+    let resolvedSourceAssetIds: string[] = []
 
-    if (typeof inputImageUrl === 'string' && inputImageUrl) {
-      resolvedInputUrl = inputImageUrl
+    // 处理单图或多图 URL
+    if (Array.isArray(inputImageUrls) && inputImageUrls.length > 0) {
+      resolvedInputUrls = inputImageUrls.filter((url): url is string => typeof url === 'string' && !!url)
+    } else if (typeof inputImageUrl === 'string' && inputImageUrl) {
+      resolvedInputUrls = [inputImageUrl]
     }
 
-    if (!resolvedInputUrl && typeof sourceAssetId === 'string' && sourceAssetId) {
+    // 处理从素材库选择的图片
+    if (Array.isArray(sourceAssetIds) && sourceAssetIds.length > 0) {
+      const assets = await prisma.asset.findMany({
+        where: { id: { in: sourceAssetIds } },
+      })
+      for (const asset of assets) {
+        const assetWithImage = asset as any
+        if (!assetWithImage.imageUrl) continue
+        // 简单权限检查
+        if (userId && asset.userId && asset.userId !== userId) {
+          continue // 跳过无权限的素材
+        }
+        resolvedInputUrls.push(assetWithImage.imageUrl)
+        resolvedSourceAssetIds.push(asset.id)
+      }
+    } else if (typeof sourceAssetId === 'string' && sourceAssetId) {
       const asset = await prisma.asset.findUnique({ where: { id: sourceAssetId } })
-      if (!asset || !asset.imageUrl) {
-        return NextResponse.json({ error: '原图素材不存在或没有图片' }, { status: 404 })
+      if (asset) {
+        const assetWithImage = asset as any
+        if (assetWithImage.imageUrl) {
+          // 简单权限：若素材归属到某个用户，则仅允许本人编辑；匿名素材允许所有人编辑
+          if (userId && asset.userId && asset.userId !== userId) {
+            return NextResponse.json({ error: '无权限编辑该素材' }, { status: 403 })
+          }
+          resolvedInputUrls.push(assetWithImage.imageUrl)
+          resolvedSourceAssetIds.push(asset.id)
+        }
       }
-
-      // 简单权限：若素材归属到某个用户，则仅允许本人编辑；匿名素材允许所有人编辑
-      if (userId && asset.userId && asset.userId !== userId) {
-        return NextResponse.json({ error: '无权限编辑该素材' }, { status: 403 })
-      }
-
-      resolvedInputUrl = asset.imageUrl
-      resolvedSourceAssetId = asset.id
     }
 
-    if (!resolvedInputUrl) {
+    if (resolvedInputUrls.length === 0) {
       return NextResponse.json(
-        { error: '请提供 inputImageUrl 或 sourceAssetId 作为输入图' },
+        { error: '请提供 inputImageUrl/inputImageUrls 或 sourceAssetId/sourceAssetIds 作为输入图' },
         { status: 400 }
       )
     }
@@ -97,62 +116,31 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const generated = await editImage(resolvedInputUrl, description, {
-      provider: actualProvider || undefined,
-      model: actualModel || undefined,
-      size: typeof size === 'string' ? size : undefined,
+    // 创建异步任务
+    const taskType = resolvedInputUrls.length > 1 ? 'compose' : 'edit'
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000) // 30 分钟后过期
+
+    const task = await prisma.task.create({
+      data: {
+        userId: userId || null,
+        type: taskType,
+        status: 'pending',
+        description,
+        inputImageUrls: JSON.stringify(resolvedInputUrls),
+        provider: actualProvider,
+        model: actualModel,
+        size: typeof size === 'string' ? size : null,
+        expiresAt,
+      },
     })
 
-    const providerImageUrl = generated.imageUrl
-    const mimeType = generated.mimeType || 'image/png'
-
-    // 上传到 Blob：最终只保存 Blob URL
-    const blobPrefix = process.env.VERCEL_BLOB_PREFIX || 'generated'
-    const { url: imageUrl } = await uploadImageUrlToVercelBlob({
-      sourceUrl: providerImageUrl,
-      mimeType,
-      prefix: blobPrefix,
-    })
-
-    const assetData: any = {
-      description,
-      type: 'image',
-      operation: 'edit',
-      imageUrl,
-      mimeType,
-      provider: actualProvider,
-      model: actualModel,
-      inputImageUrl: resolvedInputUrl,
-    }
-
-    if (resolvedSourceAssetId) {
-      assetData.sourceAsset = { connect: { id: resolvedSourceAssetId } }
-    }
-
-    if (userId) {
-      assetData.user = { connect: { id: userId } }
-    }
-
-    const asset = await prisma.asset.create({ data: assetData })
-
-    if (userId) {
-      await incrementUserUsage(userId)
-      const updatedUsageCheck = await checkUserUsageLimit(userId)
-      return NextResponse.json({
-        success: true,
-        imageUrl,
-        mimeType,
-        assetId: asset.id,
-        remaining: updatedUsageCheck.remaining,
-      })
-    }
-
+    // 立即返回任务 ID，不等待处理完成
+    // 后台处理将在 /api/tasks/process 中完成
     return NextResponse.json({
       success: true,
-      imageUrl,
-      mimeType,
-      assetId: asset.id,
-      remaining: -1,
+      taskId: task.id,
+      status: 'pending',
+      message: '任务已创建，正在处理中...',
     })
   } catch (error: any) {
     // 只在开发环境输出详细错误日志

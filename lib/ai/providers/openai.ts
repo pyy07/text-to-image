@@ -81,10 +81,10 @@ export class OpenAIProvider implements AIProviderInterface {
     }
 
     const start = Date.now()
-    const timeoutMs = 120_000
+    const timeoutMs = 300_000 // 5 分钟（300 秒）
     while (true) {
       if (Date.now() - start > timeoutMs) {
-        throw new Error('ModelScope 推理超时（等待任务完成超时）')
+        throw new Error(`ModelScope 推理超时（等待任务完成超时，已等待 ${Math.round((Date.now() - start) / 1000)} 秒）`)
       }
 
       const taskRes = await fetch(`${base}v1/tasks/${taskId}`, {
@@ -266,7 +266,7 @@ export class OpenAIProvider implements AIProviderInterface {
   async editImage(
     inputImageUrl: string,
     prompt: string,
-    options?: { model?: string; size?: string }
+    options?: { model?: string; size?: string; inputImageUrls?: string[] }
   ): Promise<{ imageUrl: string; mimeType?: string }> {
     if (!this.client || !this.apiKey) {
       throw new Error('OpenAI 兼容接口未配置，请设置 OPENAI_API_KEY')
@@ -300,13 +300,18 @@ export class OpenAIProvider implements AIProviderInterface {
 
     const size = options?.size || process.env.OPENAI_IMAGE_SIZE || '1024x1024'
 
+    // 支持多图输入：如果提供了 inputImageUrls，使用多图；否则使用单图
+    const imageUrls = options?.inputImageUrls && options.inputImageUrls.length > 0
+      ? options.inputImageUrls
+      : [inputImageUrl]
+
     // 首期：仅支持 ModelScope API-Inference 的整体改图（Qwen-Image-Edit-2509）
     if (this.isModelScopeInference()) {
       return await this.generateImageViaModelScopeInference({
         model: modelName,
         prompt,
         size,
-        imageUrls: [inputImageUrl],
+        imageUrls,
       })
     }
 
