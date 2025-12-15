@@ -213,6 +213,7 @@ export default function ImageComposer({
       return
     }
 
+    // 如果不允许匿名访问，要求登录并检查使用次数
     if (!allowAnonymous) {
       if (!isLoggedIn || !userId) {
         setError('请先登录后再合成图片')
@@ -225,6 +226,7 @@ export default function ImageComposer({
         return
       }
     }
+    // 如果允许匿名访问，无论是否登录都不检查使用次数
 
     setLoading(true)
     setError(null)
@@ -463,7 +465,7 @@ export default function ImageComposer({
           <p className="text-xs sm:text-sm text-yellow-800">合成图片需要登录，每个用户默认可以使用 3 次</p>
         </div>
       )}
-      {isLoggedIn && (
+      {isLoggedIn && !allowAnonymous && (
         <div className="mb-4 sm:mb-6 p-2.5 sm:p-3 bg-blue-50 border border-blue-200 rounded-lg">
           <p className="text-xs sm:text-sm text-blue-800">
             剩余使用次数: <span className="font-semibold">{currentRemaining === -1 ? '无限制' : currentRemaining}</span>

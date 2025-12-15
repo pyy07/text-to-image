@@ -6,11 +6,20 @@ export async function GET(request: NextRequest) {
     const userId = request.headers.get('x-user-id')
     const searchParams = request.nextUrl.searchParams
     const userOnly = searchParams.get('userOnly') === 'true'
+    const publicOnly = searchParams.get('publicOnly') === 'true' // 案例页面：只显示公开的（无userId）
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '100')
     const skip = (page - 1) * limit
 
-    const where = userOnly && userId ? { userId } : {}
+    let where: any = {}
+    
+    if (publicOnly) {
+      // 案例页面：只显示公开的（userId为null）
+      where = { userId: null }
+    } else if (userOnly && userId) {
+      // 我的素材页面：只显示当前用户的图片，并且必须有userId
+      where = { userId }
+    }
 
     const [assets, total] = await Promise.all([
       prisma.asset.findMany({

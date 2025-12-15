@@ -16,13 +16,13 @@ export async function GET(request: NextRequest) {
     const appId = process.env.WECHAT_APP_ID
     const appSecret = process.env.WECHAT_APP_SECRET
 
-    // 开发模式：直接创建测试用户
+    // 开发模式：使用固定的测试用户
     if (dev) {
-      const mockOpenId = `dev_${Date.now()}_${Math.random().toString(36).substring(7)}`
+      const mockOpenId = 'dev_test_user' // 使用固定的测试用户ID，确保每次登录都是同一个用户
       let user = await getUserByWechatOpenId(mockOpenId)
 
       if (!user) {
-        user = await createUser(mockOpenId, `测试用户_${Date.now().toString().slice(-6)}`)
+        user = await createUser(mockOpenId, '测试用户')
       }
 
       if (!user) {

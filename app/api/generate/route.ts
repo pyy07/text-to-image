@@ -31,16 +31,16 @@ export async function POST(request: NextRequest) {
       process.env.ALLOW_ANONYMOUS === 'true' || 
       (process.env.NODE_ENV === 'development' && process.env.ALLOW_ANONYMOUS !== 'false')
 
-    // 如果未登录且不允许匿名访问，返回错误
-    if (!userId && !allowAnonymous) {
-      return NextResponse.json(
-        { error: '请先登录' },
-        { status: 401 }
-      )
-    }
-
-    // 如果已登录，检查用户使用次数限制
-    if (userId) {
+    // 如果不允许匿名访问，要求登录并检查使用次数
+    if (!allowAnonymous) {
+      if (!userId) {
+        return NextResponse.json(
+          { error: '请先登录' },
+          { status: 401 }
+        )
+      }
+      
+      // 检查用户使用次数限制
       const usageCheck = await checkUserUsageLimit(userId)
       if (!usageCheck.allowed) {
         return NextResponse.json(
@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
         )
       }
     }
+    // 如果允许匿名访问，无论是否登录都不检查使用次数
 
     // 验证 provider 和 model 是否在允许列表中
     if (provider) {
@@ -135,8 +136,8 @@ export async function POST(request: NextRequest) {
       data: assetData,
     })
 
-    // 如果已登录，增加使用次数
-    if (userId) {
+    // 如果不允许匿名访问且已登录，增加使用次数
+    if (!allowAnonymous && userId) {
       await incrementUserUsage(userId)
       const updatedUsageCheck = await checkUserUsageLimit(userId)
 
@@ -148,13 +149,13 @@ export async function POST(request: NextRequest) {
         remaining: updatedUsageCheck.remaining,
       })
     } else {
-      // 匿名访问，不限制次数
+      // 允许匿名访问时，无论是否登录都不增加使用次数，返回无限制
       return NextResponse.json({
         success: true,
         imageUrl,
         mimeType,
         assetId: asset.id,
-        remaining: -1, // 匿名访问显示无限制
+        remaining: -1, // 允许匿名访问时显示无限制
       })
     }
   } catch (error: any) {

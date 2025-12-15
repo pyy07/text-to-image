@@ -245,7 +245,7 @@ export default function Home() {
 
   return (
     <div className="h-screen overflow-hidden flex flex-col">
-      <Navigation user={user || undefined} onLogout={handleLogout} />
+      <Navigation onLogout={handleLogout} />
       <main className="flex-1 overflow-hidden p-2 sm:p-3 lg:p-6">
         <div className="h-full max-w-screen-2xl mx-auto">
           <div className="h-full bg-gray-50 rounded-xl shadow-sm border border-white/50 overflow-hidden flex flex-col min-h-0">

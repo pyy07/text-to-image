@@ -115,8 +115,12 @@ export async function POST(request: NextRequest) {
 
       const asset = await prisma.asset.create({ data: assetData })
 
-      // 更新用户使用次数
-      if (task.userId) {
+      // 如果不允许匿名访问且任务有用户ID，增加使用次数
+      const allowAnonymous =
+        process.env.ALLOW_ANONYMOUS === 'true' ||
+        (process.env.NODE_ENV === 'development' && process.env.ALLOW_ANONYMOUS !== 'false')
+      
+      if (!allowAnonymous && task.userId) {
         await incrementUserUsage(task.userId)
       }
 

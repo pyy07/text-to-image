@@ -34,7 +34,8 @@ export default function GalleryPage() {
   const fetchAssets = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/assets?page=${page}&limit=${pageSize}`)
+      // 案例页面：只显示公开的（无userId）图片
+      const response = await fetch(`/api/assets?page=${page}&limit=${pageSize}&publicOnly=true`)
 
       if (response.ok) {
         const data = await response.json()

@@ -8,6 +8,11 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [hasWechatConfig, setHasWechatConfig] = useState<boolean | null>(null)
   const [qrUrl, setQrUrl] = useState<string | null>(null)
+  const [isRegister, setIsRegister] = useState(false)
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [nickname, setNickname] = useState('')
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     // 通过 API 检查是否配置了微信
@@ -68,15 +73,71 @@ export default function LoginPage() {
     }
   }
 
-  const handleDevLogin = async () => {
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
     setLoading(true)
+
     try {
-      const response = await fetch('/api/auth/wechat?dev=true')
-      if (response.redirected) {
-        window.location.href = response.url
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username,
+          password,
+          nickname: nickname || username,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || '注册失败')
+        setLoading(false)
+        return
       }
-    } catch (error) {
-      console.error('登录失败:', error)
+
+      // 保存 token 并跳转
+      if (data.token) {
+        localStorage.setItem('auth_token', data.token)
+        router.push('/')
+      }
+    } catch (error: any) {
+      setError(error.message || '注册失败，请稍后重试')
+      setLoading(false)
+    }
+  }
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setLoading(true)
+
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || '登录失败')
+        setLoading(false)
+        return
+      }
+
+      // 保存 token 并跳转
+      if (data.token) {
+        localStorage.setItem('auth_token', data.token)
+        router.push('/')
+      }
+    } catch (error: any) {
+      setError(error.message || '登录失败，请稍后重试')
       setLoading(false)
     }
   }
@@ -114,7 +175,9 @@ export default function LoginPage() {
       <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-4 sm:p-6 lg:p-8">
         <div className="text-center mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2">文生图生成器</h1>
-          <p className="text-sm sm:text-base text-gray-600">请使用微信扫码登录</p>
+          {hasWechatConfig && (
+            <p className="text-sm sm:text-base text-gray-600">请使用微信扫码登录</p>
+          )}
         </div>
 
         {hasWechatConfig === null ? (
@@ -172,19 +235,97 @@ export default function LoginPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-              <p className="text-sm text-yellow-800">
-                ⚠️ 未配置微信 AppID，使用开发模式登录
-              </p>
+            <div className="flex gap-2 mb-4 border-b">
+              <button
+                onClick={() => {
+                  setIsRegister(false)
+                  setError(null)
+                }}
+                className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+                  !isRegister
+                    ? 'text-blue-600 border-b-2 border-blue-600'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                登录
+              </button>
+              <button
+                onClick={() => {
+                  setIsRegister(true)
+                  setError(null)
+                }}
+                className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+                  isRegister
+                    ? 'text-blue-600 border-b-2 border-blue-600'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                注册
+              </button>
             </div>
 
-            <button
-              onClick={handleDevLogin}
-              disabled={loading}
-              className="w-full px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-              {loading ? '登录中...' : '开发模式登录'}
-            </button>
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                <p className="text-sm text-red-800">{error}</p>
+              </div>
+            )}
+
+            <form onSubmit={isRegister ? handleRegister : handleLogin} className="space-y-4">
+              <div>
+                <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
+                  用户名
+                </label>
+                <input
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="请输入用户名"
+                />
+              </div>
+
+              {isRegister && (
+                <div>
+                  <label htmlFor="nickname" className="block text-sm font-medium text-gray-700 mb-1">
+                    昵称（可选）
+                  </label>
+                  <input
+                    id="nickname"
+                    type="text"
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="请输入昵称"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                  密码
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={isRegister ? 6 : undefined}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder={isRegister ? '至少6位密码' : '请输入密码'}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {loading ? (isRegister ? '注册中...' : '登录中...') : (isRegister ? '注册' : '登录')}
+              </button>
+            </form>
           </div>
         )}
 

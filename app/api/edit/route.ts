@@ -20,11 +20,13 @@ export async function POST(request: NextRequest) {
       process.env.ALLOW_ANONYMOUS === 'true' ||
       (process.env.NODE_ENV === 'development' && process.env.ALLOW_ANONYMOUS !== 'false')
 
-    if (!userId && !allowAnonymous) {
-      return NextResponse.json({ error: '请先登录' }, { status: 401 })
-    }
-
-    if (userId) {
+    // 如果不允许匿名访问，要求登录并检查使用次数
+    if (!allowAnonymous) {
+      if (!userId) {
+        return NextResponse.json({ error: '请先登录' }, { status: 401 })
+      }
+      
+      // 检查用户使用次数限制
       const usageCheck = await checkUserUsageLimit(userId)
       if (!usageCheck.allowed) {
         return NextResponse.json(
@@ -33,6 +35,7 @@ export async function POST(request: NextRequest) {
         )
       }
     }
+    // 如果允许匿名访问，无论是否登录都不检查使用次数
 
     // 支持多图输入
     let resolvedInputUrls: string[] = []
