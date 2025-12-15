@@ -12,6 +12,7 @@ interface ImageComposerProps {
   onImageGenerated?: (imageUrl: string) => void
   onLoadingChange?: (loading: boolean) => void
   onInputImagesChange?: (imageUrls: string[]) => void
+  initialImageUrls?: string[] // 初始选中的图片 URL
 }
 
 interface Provider {
@@ -37,6 +38,7 @@ export default function ImageComposer({
   onImageGenerated,
   onLoadingChange,
   onInputImagesChange,
+  initialImageUrls = [],
 }: ImageComposerProps) {
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
@@ -46,7 +48,7 @@ export default function ImageComposer({
   const [selectedProvider, setSelectedProvider] = useState<string>('')
   const [selectedModel, setSelectedModel] = useState<string>('')
   const [size, setSize] = useState<string>(SIZES[0])
-  const [selectedImages, setSelectedImages] = useState<string[]>([]) // 图片 URL 数组
+  const [selectedImages, setSelectedImages] = useState<string[]>(initialImageUrls) // 图片 URL 数组
   const [uploadingImages, setUploadingImages] = useState<string[]>([]) // 正在上传的图片 URL
   const [showAssetPicker, setShowAssetPicker] = useState(false)
   const [assets, setAssets] = useState<Asset[]>([])
@@ -103,6 +105,14 @@ export default function ImageComposer({
   useEffect(() => {
     setCurrentRemaining(remaining)
   }, [remaining])
+
+  // 当初始图片 URL 变化时，更新选中的图片
+  useEffect(() => {
+    if (initialImageUrls.length > 0 && JSON.stringify(selectedImages) !== JSON.stringify(initialImageUrls)) {
+      setSelectedImages(initialImageUrls)
+      onInputImagesChange?.(initialImageUrls)
+    }
+  }, [initialImageUrls]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleImageUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return

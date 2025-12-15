@@ -133,7 +133,7 @@ export default function ImageGenerator({
         setCurrentRemaining(data.remaining)
       }
 
-      setDescription('')
+      // 保留提示词，不清空
     } catch (err: any) {
       setError(err.message || '生成失败，请稍后重试')
     } finally {

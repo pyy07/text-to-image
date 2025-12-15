@@ -178,6 +178,12 @@ export default function AssetDetailPage() {
                           >
                             修改
                           </Link>
+                          <Link
+                            href={`/?composeAssetIds=${params.id}&tab=compose`}
+                            className="px-3 py-1.5 text-sm bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors"
+                          >
+                            合成
+                          </Link>
                           <a
                             href={asset.imageUrl}
                             target="_blank"

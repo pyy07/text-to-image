@@ -92,9 +92,9 @@ export default function GalleryPage() {
                     {assets.map((asset) => (
                       <div
                         key={asset.id}
-                        className="group bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-200"
+                        className="group bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-200 flex flex-col"
                       >
-                        <Link href={`/assets/${asset.id}`} className="block">
+                        <Link href={`/assets/${asset.id}`} className="block flex-1 flex flex-col">
                           <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center p-3 overflow-hidden relative">
                             {/* 类型角标（更醒目，不影响布局） */}
                             <span
@@ -116,11 +116,11 @@ export default function GalleryPage() {
                               )}
                             </div>
                           </div>
-                          <div className="p-3 sm:p-4">
-                            <p className="text-xs sm:text-sm text-gray-700 line-clamp-2 mb-2 group-hover:text-blue-600 transition-colors">
+                          <div className="p-3 sm:p-4 flex-1 flex flex-col">
+                            <p className="text-xs sm:text-sm text-gray-700 line-clamp-2 mb-2 group-hover:text-blue-600 transition-colors flex-shrink-0">
                               {asset.description}
                             </p>
-                            <div className="text-xs text-gray-500 space-y-1">
+                            <div className="text-xs text-gray-500 space-y-1 mt-auto">
                               {asset.provider && (
                                 <p>
                                   {asset.provider === 'gemini' ? 'Gemini' : asset.provider === 'openai' ? 'OpenAI' : asset.provider}
@@ -141,7 +141,7 @@ export default function GalleryPage() {
                           </div>
                         </Link>
                         {asset.imageUrl && (
-                          <div className="px-3 sm:px-4 pb-3 sm:pb-4">
+                          <div className="px-3 sm:px-4 pb-3 sm:pb-4 space-y-2 flex-shrink-0">
                             <Link
                               href={`/?editImageUrl=${encodeURIComponent(asset.imageUrl)}`}
                               className="block w-full px-3 py-2 text-xs sm:text-sm text-center bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
@@ -151,6 +151,16 @@ export default function GalleryPage() {
                               }}
                             >
                               修改
+                            </Link>
+                            <Link
+                              href={`/?composeAssetIds=${asset.id}&tab=compose`}
+                              className="block w-full px-3 py-2 text-xs sm:text-sm text-center bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+                              onClick={(e) => {
+                                // 阻止事件冒泡，避免触发父 Link
+                                e.stopPropagation()
+                              }}
+                            >
+                              合成
                             </Link>
                           </div>
                         )}

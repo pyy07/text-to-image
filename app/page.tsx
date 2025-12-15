@@ -76,6 +76,10 @@ export default function Home() {
     const editImageUrl = urlParams.get('editImageUrl')
     const editAssetId = urlParams.get('editAssetId')
     
+    // 检查是否有要合成的素材 ID
+    const composeAssetIds = urlParams.get('composeAssetIds')
+    const tab = urlParams.get('tab')
+    
     if (editImageUrl) {
       // 直接使用 URL 参数中的图片地址
       setImageUrl(decodeURIComponent(editImageUrl))
@@ -94,6 +98,30 @@ export default function Home() {
           console.error('获取素材信息失败:', error)
         })
       // 清除 URL 参数
+      window.history.replaceState({}, '', window.location.pathname)
+    } else if (composeAssetIds) {
+      // 切换到合成标签页
+      setActiveTab('compose')
+      // 通过 assetIds 获取图片地址
+      const ids = composeAssetIds.split(',').filter(Boolean)
+      Promise.all(
+        ids.map((id) =>
+          fetch(`/api/assets/${id}`)
+            .then((res) => res.json())
+            .then((data) => data.asset?.imageUrl)
+            .catch(() => null)
+        )
+      ).then((urls) => {
+        const validUrls = urls.filter((url): url is string => typeof url === 'string' && !!url)
+        if (validUrls.length > 0) {
+          setInputImageUrls(validUrls)
+        }
+      })
+      // 清除 URL 参数
+      window.history.replaceState({}, '', window.location.pathname)
+    } else if (tab === 'compose') {
+      // 如果只是切换标签页
+      setActiveTab('compose')
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [])
@@ -298,6 +326,7 @@ export default function Home() {
                         }}
                         onLoadingChange={(loading) => setImageLoading(loading)}
                         onInputImagesChange={handleInputImagesChange}
+                        initialImageUrls={inputImageUrls}
                       />
                     )}
                   </div>
