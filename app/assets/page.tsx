@@ -6,6 +6,7 @@ import Navigation from '@/components/Navigation'
 
 interface Asset {
   id: string
+  userId?: string | null
   description: string
   imageUrl?: string | null
   type?: 'image' | 'svg' | 'html'
