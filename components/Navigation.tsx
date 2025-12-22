@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import Image from 'next/image'
+import Logo3D from '@/components/Logo3D'
 
 interface NavigationProps {
   user?: {
@@ -158,9 +158,10 @@ export default function Navigation({ user: propUser, onLogout }: NavigationProps
 
   return (
     <nav className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
-        <div className="flex justify-between items-center h-14 sm:h-16">
-          <div className="flex items-center flex-1 min-w-0">
+      <div className="max-w-screen-2xl mx-auto px-2 sm:px-3 lg:px-6">
+        <div className="flex items-center justify-between h-14 sm:h-16">
+          {/* 左侧：Logo 和导航 */}
+          <div className="flex items-center flex-shrink-0">
             <div className="flex-shrink-0 flex items-center gap-1.5 sm:gap-2">
               <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center text-white font-bold text-xs sm:text-sm">
                 IMG
@@ -188,14 +189,14 @@ export default function Navigation({ user: propUser, onLogout }: NavigationProps
               })}
             </div>
           </div>
-          <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+          
+          {/* 右侧：登录按钮和 Logo，使用 flexbox 对齐到右侧边缘 */}
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+            {/* 登录/用户信息 */}
             {checkingAuth && user ? (
-              // 检查中，显示占位符避免闪烁（有 token 但还在获取用户信息）
-              <>
-                <span className="hidden sm:inline text-sm text-gray-400 truncate max-w-[100px] lg:max-w-none">...</span>
-              </>
+              <span className="hidden sm:inline text-sm text-gray-400 truncate max-w-[100px] lg:max-w-none">...</span>
             ) : user && !checkingAuth ? (
-              <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
                 <span className="hidden sm:inline text-sm text-gray-700 font-medium truncate max-w-[100px] lg:max-w-none">{user.nickname || '用户'}</span>
                 <button
                   onClick={handleLogout}
@@ -204,8 +205,8 @@ export default function Navigation({ user: propUser, onLogout }: NavigationProps
                   退出
                 </button>
               </div>
-            ) : !checkingAuth ? (
-              <div className="relative group">
+            ) : (
+              <div className="relative group flex-shrink-0">
                 <Link
                   href="/login"
                   className="px-3 sm:px-4 py-1.5 sm:py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-xs sm:text-sm whitespace-nowrap"
@@ -219,16 +220,10 @@ export default function Navigation({ user: propUser, onLogout }: NavigationProps
                   <div className="absolute left-1/2 -translate-x-1/2 bottom-full w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-800"></div>
                 </div>
               </div>
-            ) : null}
-            <div className="hidden sm:block">
-              <Image
-                src="/logo.png"
-                alt="Logo"
-                width={160}
-                height={80}
-                className="h-16 w-auto object-contain"
-                priority
-              />
+            )}
+            {/* Logo3D - 在登录按钮右边，与登录按钮垂直居中对齐，向下偏移 2px */}
+            <div className="hidden sm:block" style={{ width: '140px', height: '33px', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', transform: 'translateY(2.5px)' }}>
+              <Logo3D />
             </div>
           </div>
         </div>

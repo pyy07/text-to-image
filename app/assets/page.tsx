@@ -143,16 +143,16 @@ export default function AssetsPage() {
                             {asset.type === 'svg' ? 'SVG' : asset.type === 'html' ? 'H5' : 'IMG'}
                           </span>
                           <div className="w-full h-full rounded-md overflow-hidden bg-white/80 backdrop-blur-sm flex items-center justify-center">
-                            {asset.imageUrl ? (
-                              <img
-                                src={asset.imageUrl}
-                                alt={asset.description}
+                          {asset.imageUrl ? (
+                            <img
+                              src={asset.imageUrl}
+                              alt={asset.description}
                                 className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="text-gray-500 text-sm">无预览</div>
-                            )}
-                          </div>
+                            />
+                          ) : (
+                            <div className="text-gray-500 text-sm">无预览</div>
+                          )}
+                        </div>
                         </div>
                         <div className="p-3 sm:p-4 flex-1 flex flex-col">
                           <p className="text-xs sm:text-sm text-gray-700 line-clamp-2 mb-2 group-hover:text-blue-600 transition-colors flex-shrink-0">
