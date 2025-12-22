@@ -222,7 +222,7 @@ export default function Navigation({ user: propUser, onLogout }: NavigationProps
               </div>
             )}
             {/* Logo3D - 在登录按钮右边，与登录按钮垂直居中对齐，向下偏移 2px */}
-            <div className="hidden sm:block" style={{ width: '140px', height: '33px', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', transform: 'translateY(2.5px)' }}>
+            <div className="hidden sm:block" style={{ width: '140px', height: '33px', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', transform: 'translateY(6px)' }}>
               <Logo3D />
             </div>
           </div>
