@@ -48,11 +48,23 @@ export default function ImageComposer({
   const [selectedProvider, setSelectedProvider] = useState<string>('')
   const [selectedModel, setSelectedModel] = useState<string>('')
   const [size, setSize] = useState<string>(SIZES[0])
+  // 使用 useRef 保存 selectedImages，避免组件重新挂载时丢失
+  const selectedImagesRef = useRef<string[]>(initialImageUrls)
   const [selectedImages, setSelectedImages] = useState<string[]>(initialImageUrls) // 图片 URL 数组
   const [uploadingImages, setUploadingImages] = useState<string[]>([]) // 正在上传的图片 URL
+  
+  // 同步 ref 和 state
+  useEffect(() => {
+    selectedImagesRef.current = selectedImages
+  }, [selectedImages])
   const [showAssetPicker, setShowAssetPicker] = useState(false)
+  const [showGalleryPicker, setShowGalleryPicker] = useState(false)
   const [assets, setAssets] = useState<Asset[]>([])
+  const [galleryAssets, setGalleryAssets] = useState<Asset[]>([])
   const [loadingAssets, setLoadingAssets] = useState(false)
+  const [loadingGalleryAssets, setLoadingGalleryAssets] = useState(false)
+  const [galleryPage, setGalleryPage] = useState(1)
+  const [hasMoreGallery, setHasMoreGallery] = useState(true)
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -106,12 +118,31 @@ export default function ImageComposer({
     setCurrentRemaining(remaining)
   }, [remaining])
 
-  // 当初始图片 URL 变化时，更新选中的图片
+  // 当初始图片 URL 变化时，确保 selectedImages 包含所有 initialImageUrls 中的图片
   useEffect(() => {
-    if (initialImageUrls.length > 0 && JSON.stringify(selectedImages) !== JSON.stringify(initialImageUrls)) {
-      setSelectedImages(initialImageUrls)
-      onInputImagesChange?.(initialImageUrls)
+    // 如果 initialImageUrls 为空，不更新 selectedImages（保留用户已选择的图片）
+    if (initialImageUrls.length === 0) {
+      return
     }
+    
+    setSelectedImages((prev) => {
+      // 如果 prev 为空，尝试从 ref 中恢复（处理组件重新挂载的情况）
+      const current = prev.length > 0 ? prev : selectedImagesRef.current
+      // 合并策略：保留 current 中的所有图片，同时确保包含 initialImageUrls 中的所有图片
+      const combined = [...current]
+      initialImageUrls.forEach((url) => {
+        if (!combined.includes(url)) {
+          combined.push(url)
+        }
+      })
+      // 只有当合并后的结果与当前不同时才更新
+      const currentSorted = [...current].sort()
+      const combinedSorted = [...combined].sort()
+      if (JSON.stringify(currentSorted) !== JSON.stringify(combinedSorted)) {
+        return combined
+      }
+      return prev
+    })
   }, [initialImageUrls]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleImageUpload = async (files: FileList | null) => {
@@ -200,6 +231,45 @@ export default function ImageComposer({
       })
     }
     setShowAssetPicker(false)
+  }
+
+  const loadGalleryAssets = async (page = 1) => {
+    setLoadingGalleryAssets(true)
+    try {
+      const res = await fetch(`/api/assets?publicOnly=true&page=${page}&limit=20`)
+      const data = await res.json()
+      if (res.ok && data.assets) {
+        const validAssets = data.assets.filter((a: Asset) => a.imageUrl)
+        if (page === 1) {
+          setGalleryAssets(validAssets)
+        } else {
+          setGalleryAssets((prev) => [...prev, ...validAssets])
+        }
+        setHasMoreGallery(validAssets.length === 20 && data.hasMore)
+      }
+    } catch (error) {
+      console.error('加载案例失败:', error)
+    } finally {
+      setLoadingGalleryAssets(false)
+    }
+  }
+
+  const handleSelectGalleryAsset = (asset: Asset) => {
+    if (!selectedImages.includes(asset.imageUrl)) {
+      setSelectedImages((prev) => {
+        const newImages = [...prev, asset.imageUrl]
+        onInputImagesChange?.(newImages)
+        return newImages
+      })
+    }
+  }
+
+  const handleLoadMoreGallery = () => {
+    if (!loadingGalleryAssets && hasMoreGallery) {
+      const nextPage = galleryPage + 1
+      setGalleryPage(nextPage)
+      loadGalleryAssets(nextPage)
+    }
   }
 
   const handleCompose = async () => {
@@ -322,7 +392,7 @@ export default function ImageComposer({
           )}
 
           {/* 上传和选择按钮 */}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <input
               ref={fileInputRef}
               type="file"
@@ -335,7 +405,7 @@ export default function ImageComposer({
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={loading || uploadingImages.length > 0}
-              className="flex-1 px-4 py-2 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex-1 min-w-[120px] px-4 py-2 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {uploadingImages.length > 0 ? (
                 <>
@@ -349,6 +419,20 @@ export default function ImageComposer({
                 </>
               )}
             </button>
+            <button
+              onClick={() => {
+                setShowGalleryPicker(!showGalleryPicker)
+                if (!showGalleryPicker) {
+                  setGalleryPage(1)
+                  loadGalleryAssets(1)
+                }
+              }}
+              disabled={loading}
+              className="flex-1 min-w-[120px] px-4 py-2 text-sm bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <span>🎨</span>
+              <span>从案例选择</span>
+            </button>
             {isLoggedIn && (
               <button
                 onClick={() => {
@@ -358,13 +442,60 @@ export default function ImageComposer({
                   }
                 }}
                 disabled={loading}
-                className="flex-1 px-4 py-2 text-sm bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 min-w-[120px] px-4 py-2 text-sm bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <span>📚</span>
                 <span>从素材库选择</span>
               </button>
             )}
           </div>
+
+          {/* 案例选择器 */}
+          {showGalleryPicker && (
+            <div className="border border-gray-300 rounded-lg p-3 max-h-96 overflow-y-auto">
+              {loadingGalleryAssets && galleryAssets.length === 0 ? (
+                <div className="text-center py-4 text-gray-500">加载中...</div>
+              ) : galleryAssets.length === 0 ? (
+                <div className="text-center py-4 text-gray-500">暂无案例</div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    {galleryAssets.map((asset) => (
+                      <button
+                        key={asset.id}
+                        onClick={() => handleSelectGalleryAsset(asset)}
+                        className="relative aspect-square group"
+                      >
+                        <img
+                          src={asset.imageUrl}
+                          alt={asset.description || '案例'}
+                          className={`w-full h-full object-cover rounded border-2 transition-all ${
+                            selectedImages.includes(asset.imageUrl)
+                              ? 'border-green-500 opacity-50'
+                              : 'border-gray-200 group-hover:border-blue-500'
+                          }`}
+                        />
+                        {selectedImages.includes(asset.imageUrl) && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-green-500 bg-opacity-50 rounded">
+                            <span className="text-white text-xl">✓</span>
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  {hasMoreGallery && (
+                    <button
+                      onClick={handleLoadMoreGallery}
+                      disabled={loadingGalleryAssets}
+                      className="w-full px-4 py-2 text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {loadingGalleryAssets ? '加载中...' : '加载更多'}
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           {/* 素材库选择器 */}
           {showAssetPicker && (

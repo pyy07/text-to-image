@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import ImageGenerator from '@/components/ImageGenerator'
 import ImageComposer from '@/components/ImageComposer'
 import ImagePreview from '@/components/ImagePreview'
@@ -18,6 +19,7 @@ interface User {
 }
 
 export default function Home() {
+  const searchParams = useSearchParams()
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [allowAnonymous, setAllowAnonymous] = useState(false)
@@ -27,9 +29,20 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<'generate' | 'compose'>('generate')
   // 输入图片状态
   const [inputImageUrl, setInputImageUrl] = useState<string | null>(null) // 单张输入图片（修改模式）
-  const [inputImageUrls, setInputImageUrls] = useState<string[]>([]) // 多张输入图片（合成模式）
+  // 使用 useRef 保存 inputImageUrls，避免组件重新挂载时丢失
+  const inputImageUrlsRef = useRef<string[]>([])
+  const [inputImageUrls, setInputImageUrls] = useState<string[]>(() => {
+    // 初始化时尝试从 ref 恢复（如果组件重新挂载）
+    return inputImageUrlsRef.current.length > 0 ? inputImageUrlsRef.current : []
+  }) // 多张输入图片（合成模式）
   const [previewMode, setPreviewMode] = useState<'generate' | 'edit' | 'compose'>('generate')
+  
+  // 同步 ref 和 state
+  useEffect(() => {
+    inputImageUrlsRef.current = inputImageUrls
+  }, [inputImageUrls])
 
+  // 初始化：检查认证和用户信息
   useEffect(() => {
     // 检查是否允许匿名访问
     fetch('/api/auth/check')
@@ -71,14 +84,14 @@ export default function Home() {
         setLoading(false)
       }
     }
+  }, [])
 
-    // 检查 URL 参数中是否有 editImageUrl 或 editAssetId
-    const editImageUrl = urlParams.get('editImageUrl')
-    const editAssetId = urlParams.get('editAssetId')
-    
-    // 检查是否有要合成的素材 ID
-    const composeAssetIds = urlParams.get('composeAssetIds')
-    const tab = urlParams.get('tab')
+  // 监听 URL 参数变化，处理图片编辑和合成
+  useEffect(() => {
+    const editImageUrl = searchParams.get('editImageUrl')
+    const editAssetId = searchParams.get('editAssetId')
+    const composeAssetIds = searchParams.get('composeAssetIds')
+    const tab = searchParams.get('tab')
     
     if (editImageUrl) {
       // 直接使用 URL 参数中的图片地址
@@ -114,17 +127,29 @@ export default function Home() {
       ).then((urls) => {
         const validUrls = urls.filter((url): url is string => typeof url === 'string' && !!url)
         if (validUrls.length > 0) {
-          setInputImageUrls(validUrls)
+          // 追加新选择的图片，而不是替换（保留之前已选择的图片）
+          // 使用 ref 中的值，确保即使组件重新挂载也能保留之前的图片
+          setInputImageUrls((prev) => {
+            // 如果 prev 为空，尝试从 ref 中恢复
+            const current = prev.length > 0 ? prev : inputImageUrlsRef.current
+            const combined = [...current]
+            validUrls.forEach((url) => {
+              if (!combined.includes(url)) {
+                combined.push(url)
+              }
+            })
+            return combined
+          })
         }
       })
       // 清除 URL 参数
       window.history.replaceState({}, '', window.location.pathname)
     } else if (tab === 'compose') {
-      // 如果只是切换标签页
+      // 如果只是切换标签页，保持已有的图片不变
       setActiveTab('compose')
       window.history.replaceState({}, '', window.location.pathname)
     }
-  }, [])
+  }, [searchParams])
 
   const fetchUserInfo = async (userId: string) => {
     try {
@@ -217,7 +242,7 @@ export default function Home() {
       setInputImageUrls([])
       setPreviewMode('generate')
     } else {
-      // 切换到合成模式
+      // 切换到合成模式，保持已有的图片不变
       setPreviewMode('compose')
       setInputImageUrl(null)
     }
