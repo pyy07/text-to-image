@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import ImageGenerator from '@/components/ImageGenerator'
 import ImageComposer from '@/components/ImageComposer'
@@ -18,7 +18,7 @@ interface User {
   remaining: number
 }
 
-export default function Home() {
+function HomeContent() {
   const searchParams = useSearchParams()
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
@@ -362,5 +362,31 @@ export default function Home() {
         </div>
       </main>
     </div>
+  )
+}
+
+export default function Home() {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-screen overflow-hidden flex flex-col">
+          <Navigation />
+          <main className="flex-1 overflow-hidden p-2 sm:p-3 lg:p-6">
+            <div className="h-full max-w-screen-2xl mx-auto">
+              <div className="h-full bg-gray-50 rounded-xl shadow-sm border border-white/50 overflow-hidden flex flex-col min-h-0">
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+                    <p className="text-lg text-gray-700">加载中...</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      }
+    >
+      <HomeContent />
+    </Suspense>
   )
 }
