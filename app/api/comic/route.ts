@@ -27,7 +27,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '缺少文章链接' }, { status: 400 })
     }
 
-    // 验证 URL 格式
     try {
       const urlObj = new URL(articleUrl)
       if (
@@ -57,6 +56,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    console.log('[comic] 创建任务 taskId=%s 已入库，异步执行 executeComicGeneration', task.id)
     executeComicGeneration(task.id, articleUrl).catch(console.error)
 
     return NextResponse.json({
@@ -74,22 +74,31 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * 异步执行漫画生成任务
+ * 异步执行漫画生成任务。成功时必定将 task 置为 completed，异常时置为 failed，避免卡在 processing。
  */
 async function executeComicGeneration(taskId: string, articleUrl: string) {
+  console.log('[comic] executeComicGeneration 开始 taskId=%s articleUrl=%s', taskId, articleUrl)
   try {
     await prisma.task.update({
       where: { id: taskId },
       data: { status: 'processing' },
     })
+    console.log('[comic] taskId=%s 已设为 processing', taskId)
 
     const result = await comicGenerationService.generateComic(articleUrl)
-    let resultImageUrl = result.imageUrl
+    const hasImage = typeof result?.imageUrl === 'string' && result.imageUrl.trim().length > 0
+    console.log('[comic] taskId=%s generateComic 返回 title=%s imageUrl存在=%s length=%s', taskId, result?.title ?? '', hasImage, hasImage ? String(result!.imageUrl.length) : '0')
+    if (!hasImage) {
+      throw new Error('生成服务未返回有效图片地址')
+    }
+    let resultImageUrl = result!.imageUrl.trim()
+
     if (resultImageUrl.startsWith('data:')) {
       const match = resultImageUrl.match(/^data:(image\/[^;]+);base64,(.+)$/)
       if (match) {
         const [, mimeType, base64] = match
         try {
+          console.log('[comic] taskId=%s 尝试 Blob 上传 base64Len=%s', taskId, base64?.length ?? 0)
           const buffer = Buffer.from(base64, 'base64')
           const { url } = await uploadImageBufferToVercelBlob({
             buffer,
@@ -97,17 +106,19 @@ async function executeComicGeneration(taskId: string, articleUrl: string) {
             prefix: 'comic',
           })
           resultImageUrl = url
+          console.log('[comic] taskId=%s Blob 上传成功 url=%s', taskId, url)
         } catch (uploadErr: unknown) {
-          console.warn('Vercel Blob 上传失败，使用 data URL 保存:', (uploadErr as Error)?.message)
+          console.warn('[comic] taskId=%s Vercel Blob 上传失败，使用 data URL 保存:', taskId, (uploadErr as Error)?.message)
           // Blob 未配置或 store 不存在时保留 data URL，任务仍算成功
         }
       }
     }
+
     const description = JSON.stringify({
       articleUrl,
-      articleTitle: result.title,
+      articleTitle: result!.title ?? '',
     })
-
+    console.log('[comic] taskId=%s 即将写入 DB status=completed resultImageUrl类型=%s', taskId, resultImageUrl.startsWith('data:') ? 'dataURL' : 'blobURL')
     await prisma.task.update({
       where: { id: taskId },
       data: {
@@ -116,15 +127,22 @@ async function executeComicGeneration(taskId: string, articleUrl: string) {
         resultImageUrl,
       },
     })
-    console.log('[comic] 任务完成，图片已保存:', resultImageUrl.startsWith('data:') ? 'data URL（Blob 未用）' : 'Blob URL')
-  } catch (error: any) {
-    console.error('漫画生成失败:', error)
-    await prisma.task.update({
-      where: { id: taskId },
-      data: {
-        status: 'failed',
-        error: error.message || '生成失败',
-      },
-    })
+    const verify = await prisma.task.findUnique({ where: { id: taskId }, select: { status: true } })
+    console.log('[comic] taskId=%s 已写入 completed，同进程校验 status=%s', taskId, verify?.status ?? 'null')
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error))
+    console.error('[comic] taskId=%s 异常:', taskId, err.message, err)
+    try {
+      await prisma.task.update({
+        where: { id: taskId },
+        data: {
+          status: 'failed',
+          error: err.message || '生成失败',
+        },
+      })
+      console.log('[comic] taskId=%s 已写入 failed error=%s', taskId, err.message)
+    } catch (updateErr) {
+      console.error('[comic] taskId=%s 更新为 failed 时出错:', taskId, updateErr)
+    }
   }
 }

@@ -52,7 +52,7 @@ export class ComicGenerationService {
       prompt,
       imageParts,
     )
-
+    console.log('[comic-generation] generateComic 即将返回 title=%s imageUrl长度=%s', article.title, result?.imageUrl?.length ?? 0)
     return {
       title: article.title,
       imageUrl: result.imageUrl,

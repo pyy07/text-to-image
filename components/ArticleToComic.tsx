@@ -45,18 +45,32 @@ export default function ArticleToComic({
   const onLoadingChangeRef = useRef(onLoadingChange)
   onImageGeneratedRef.current = onImageGenerated
   onLoadingChangeRef.current = onLoadingChange
+  const completedFiredRef = useRef<string | null>(null)
 
   useEffect(() => {
     setCurrentRemaining(remaining)
   }, [remaining])
 
-  // 轮询任务状态（仅依赖 taskId，避免父组件重渲染导致 interval 被清掉、拿不到完成状态）
+  // 当轮询拿到 completed 后，用 effect 触发展示（避免在 setInterval 回调里用 ref 导致父组件未更新）
+  useEffect(() => {
+    if (!taskStatus || !taskId) return
+    if (taskStatus.status !== 'completed') return
+    if (completedFiredRef.current === taskId) return
+    completedFiredRef.current = taskId
+    setLoading(false)
+    onLoadingChange?.(false)
+    const url = taskStatus.resultImageUrl || `/api/comic/${taskId}/image`
+    onImageGenerated?.(url)
+  }, [taskId, taskStatus, onImageGenerated, onLoadingChange])
+
+  // 轮询任务状态（仅依赖 taskId，避免父组件重渲染导致 interval 被清掉）
   useEffect(() => {
     if (!taskId) return
+    completedFiredRef.current = null
 
     const pollInterval = setInterval(async () => {
       try {
-        const response = await fetch(`/api/comic/${taskId}`, { cache: 'no-store' })
+        const response = await fetch(`/api/comic/${taskId}?t=${Date.now()}`, { cache: 'no-store', headers: { Pragma: 'no-cache' } })
         if (!response.ok) {
           throw new Error('查询任务失败')
         }
@@ -71,7 +85,11 @@ export default function ArticleToComic({
 
           if (data.status === 'completed') {
             const url = data.resultImageUrl || (taskId ? `/api/comic/${taskId}/image` : undefined)
-            if (url) onImageGeneratedRef.current?.(url)
+            if (url) {
+              setTimeout(() => {
+                onImageGeneratedRef.current?.(url)
+              }, 0)
+            }
           }
 
           if (data.status === 'failed') {

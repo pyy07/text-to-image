@@ -39,7 +39,16 @@ export default function GalleryPage() {
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
   const [activeTab, setActiveTab] = useState<'images' | 'comics'>('images')
+  const [allowDelete, setAllowDelete] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const pageSize = 12
+
+  useEffect(() => {
+    fetch('/api/features')
+      .then((r) => r.ok && r.json())
+      .then((data) => typeof data?.allowDelete === 'boolean' && setAllowDelete(data.allowDelete))
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (activeTab === 'images') {
@@ -105,6 +114,44 @@ export default function GalleryPage() {
     setAssets([])
     setComics([])
     setHasMore(true)
+  }
+
+  const handleDeleteAsset = async (assetId: string) => {
+    if (!allowDelete || deletingId) return
+    if (!confirm('确定要删除这条图片案例吗？')) return
+    setDeletingId(assetId)
+    try {
+      const res = await fetch(`/api/assets/${assetId}`, { method: 'DELETE' })
+      if (res.ok) {
+        setAssets((prev) => prev.filter((a) => a.id !== assetId))
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert(data?.error || '删除失败')
+      }
+    } catch {
+      alert('删除失败，请稍后重试')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const handleDeleteComic = async (comicId: string) => {
+    if (!allowDelete || deletingId) return
+    if (!confirm('确定要删除这条漫画案例吗？')) return
+    setDeletingId(comicId)
+    try {
+      const res = await fetch(`/api/comic/${comicId}`, { method: 'DELETE' })
+      if (res.ok) {
+        setComics((prev) => prev.filter((c) => c.id !== comicId))
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert(data?.error || '删除失败')
+      }
+    } catch {
+      alert('删除失败，请稍后重试')
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   return (
@@ -228,26 +275,43 @@ export default function GalleryPage() {
                               </div>
                             </div>
                           </Link>
-                          {asset.imageUrl && (
+                          {(asset.imageUrl || allowDelete) && (
                             <div className="px-3 sm:px-4 pb-3 sm:pb-4 space-y-2 flex-shrink-0">
-                              <Link
-                                href={`/?editImageUrl=${encodeURIComponent(asset.imageUrl)}`}
-                                className="block w-full px-3 py-2 text-xs sm:text-sm text-center bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                }}
-                              >
-                                修改
-                              </Link>
-                              <Link
-                                href={`/?composeAssetIds=${asset.id}&tab=compose`}
-                                className="block w-full px-3 py-2 text-xs sm:text-sm text-center bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                }}
-                              >
-                                合成
-                              </Link>
+                              {asset.imageUrl && (
+                                <>
+                                  <Link
+                                    href={`/?editImageUrl=${encodeURIComponent(asset.imageUrl)}`}
+                                    className="block w-full px-3 py-2 text-xs sm:text-sm text-center bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                    }}
+                                  >
+                                    修改
+                                  </Link>
+                                  <Link
+                                    href={`/?composeAssetIds=${asset.id}&tab=compose`}
+                                    className="block w-full px-3 py-2 text-xs sm:text-sm text-center bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                    }}
+                                  >
+                                    合成
+                                  </Link>
+                                </>
+                              )}
+                              {allowDelete && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    handleDeleteAsset(asset.id)
+                                  }}
+                                  disabled={deletingId === asset.id}
+                                  className="block w-full px-3 py-2 text-xs sm:text-sm text-center bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white rounded-lg transition-colors"
+                                >
+                                  {deletingId === asset.id ? '删除中...' : '删除'}
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -341,15 +405,30 @@ export default function GalleryPage() {
                               </div>
                             </>
                           )}
-                          {comic.resultImageUrl && (
-                            <div className="px-3 sm:px-4 pb-3 sm:pb-4 flex-shrink-0">
-                              <a
-                                href={comic.resultImageUrl}
-                                download={`comic-${comic.id}.png`}
-                                className="block w-full px-3 py-2 text-xs sm:text-sm text-center bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors"
-                              >
-                                下载漫画
-                              </a>
+                          {(comic.resultImageUrl || allowDelete) && (
+                            <div className="px-3 sm:px-4 pb-3 sm:pb-4 flex-shrink-0 space-y-2">
+                              {comic.resultImageUrl && (
+                                <a
+                                  href={comic.resultImageUrl}
+                                  download={`comic-${comic.id}.png`}
+                                  className="block w-full px-3 py-2 text-xs sm:text-sm text-center bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors"
+                                >
+                                  下载漫画
+                                </a>
+                              )}
+                              {allowDelete && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    handleDeleteComic(comic.id)
+                                  }}
+                                  disabled={deletingId === comic.id}
+                                  className="block w-full px-3 py-2 text-xs sm:text-sm text-center bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white rounded-lg transition-colors"
+                                >
+                                  {deletingId === comic.id ? '删除中...' : '删除'}
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
