@@ -8,13 +8,17 @@ export const dynamic = 'force-dynamic'
 /**
  * 查询漫画任务状态（Task type='comic'）
  * GET /api/comic/[id]
+ * 兼容 Next.js 15 params Promise，且任何错误均返回 JSON 避免线上返回 HTML 导致前端解析失败
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } | Promise<{ id: string }> }
 ) {
   try {
-    const taskId = params.id
+    const { id: taskId } = await Promise.resolve(params)
+    if (!taskId || typeof taskId !== 'string') {
+      return NextResponse.json({ error: '无效的 taskId' }, { status: 400 })
+    }
     const task = await prisma.task.findFirst({
       where: { id: taskId, type: 'comic' },
     })
@@ -62,7 +66,7 @@ export async function GET(
     console.error('查询任务失败:', error)
     return NextResponse.json(
       { error: '查询任务失败，请稍后重试' },
-      { status: 500 }
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
     )
   }
 }
@@ -73,16 +77,19 @@ export async function GET(
  */
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } | Promise<{ id: string }> }
 ) {
   try {
+    const { id: taskId } = await Promise.resolve(params)
+    if (!taskId || typeof taskId !== 'string') {
+      return NextResponse.json({ error: '无效的 taskId' }, { status: 400 })
+    }
     if (!isAllowDelete()) {
       return NextResponse.json(
         { error: '当前未开启案例删除功能' },
         { status: 403 }
       )
     }
-    const taskId = params.id
     const task = await prisma.task.findFirst({
       where: { id: taskId, type: 'comic' },
     })
