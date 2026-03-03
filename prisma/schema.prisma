@@ -61,7 +61,7 @@ model Asset {
 model Task {
   id            String   @id @default(cuid())
   userId        String?
-  type          String   // 'edit' | 'compose'
+  type          String   // 'edit' | 'compose' | 'comic'
   status        String   @default("pending") // 'pending' | 'processing' | 'completed' | 'failed' | 'expired'
   description   String   @db.Text
   inputImageUrls String  @db.Text // JSON 数组存储输入图片 URL
@@ -78,6 +78,7 @@ model Task {
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId, status])
+  @@index([type, status])
   @@index([status, createdAt])
   @@index([expiresAt])
   @@map("tasks")

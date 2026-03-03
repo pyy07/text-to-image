@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import ImageGenerator from '@/components/ImageGenerator'
 import ImageComposer from '@/components/ImageComposer'
 import ImagePreview from '@/components/ImagePreview'
+import ArticleToComic from '@/components/ArticleToComic'
 import Navigation from '@/components/Navigation'
 import TaskList from '@/components/TaskList'
 
@@ -23,10 +24,11 @@ function HomeContent() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [allowAnonymous, setAllowAnonymous] = useState(false)
+  const [comicEnabled, setComicEnabled] = useState(false)
   const [imageUrl, setImageUrl] = useState<string | null>(null) // 输出图片
   const [imageLoading, setImageLoading] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
-  const [activeTab, setActiveTab] = useState<'generate' | 'compose'>('generate')
+  const [activeTab, setActiveTab] = useState<'generate' | 'compose' | 'comic'>('generate')
   // 输入图片状态
   const [inputImageUrl, setInputImageUrl] = useState<string | null>(null) // 单张输入图片（修改模式）
   // 使用 useRef 保存 inputImageUrls，避免组件重新挂载时丢失
@@ -52,6 +54,16 @@ function HomeContent() {
       })
       .catch(() => {
         setAllowAnonymous(false)
+      })
+
+    // 文生漫功能开关（关闭时入口仍展示，提交时提示联系管理员）
+    fetch('/api/features')
+      .then((res) => res.json())
+      .then((data) => {
+        setComicEnabled(data.comicEnabled === true)
+      })
+      .catch(() => {
+        setComicEnabled(false)
       })
 
     // 检查 URL 中是否有 token（登录回调）
@@ -145,8 +157,10 @@ function HomeContent() {
       // 清除 URL 参数
       window.history.replaceState({}, '', window.location.pathname)
     } else if (tab === 'compose') {
-      // 如果只是切换标签页，保持已有的图片不变
       setActiveTab('compose')
+      window.history.replaceState({}, '', window.location.pathname)
+    } else if (tab === 'comic') {
+      setActiveTab('comic')
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [searchParams])
@@ -235,15 +249,20 @@ function HomeContent() {
     setPreviewMode('compose')
   }
 
-  const handleTabChange = (tab: 'generate' | 'compose') => {
+  const handleTabChange = (tab: 'generate' | 'compose' | 'comic') => {
     setActiveTab(tab)
     if (tab === 'generate') {
       // 切换到文生图模式，清除合成相关的输入图片
       setInputImageUrls([])
       setPreviewMode('generate')
-    } else {
+    } else if (tab === 'compose') {
       // 切换到合成模式，保持已有的图片不变
       setPreviewMode('compose')
+      setInputImageUrl(null)
+    } else if (tab === 'comic') {
+      // 切换到文生漫模式
+      setPreviewMode('generate')
+      setInputImageUrls([])
       setInputImageUrl(null)
     }
   }
@@ -285,7 +304,7 @@ function HomeContent() {
                       inputImageUrl={inputImageUrl}
                       inputImageUrls={inputImageUrls.length > 0 ? inputImageUrls : undefined}
                       loading={imageLoading} 
-                      mode={previewMode}
+                      mode={activeTab === 'comic' ? 'comic' : previewMode}
                       onImageUpload={activeTab === 'generate' ? handleImageUpload : undefined}
                       uploading={uploadingImage}
                     />
@@ -320,6 +339,16 @@ function HomeContent() {
                       >
                         合成
                       </button>
+                      <button
+                        onClick={() => handleTabChange('comic')}
+                        className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+                          activeTab === 'comic'
+                            ? 'text-orange-600 border-b-2 border-orange-600'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        文生漫
+                      </button>
                     </div>
 
                     {/* 根据标签页显示不同组件 */}
@@ -338,7 +367,7 @@ function HomeContent() {
                         onLoadingChange={(loading) => setImageLoading(loading)}
                         onModeChange={handleModeChange}
                       />
-                    ) : (
+                    ) : activeTab === 'compose' ? (
                       <ImageComposer
                         userId={user?.id}
                         remaining={user?.remaining ?? 0}
@@ -352,6 +381,20 @@ function HomeContent() {
                         onLoadingChange={(loading) => setImageLoading(loading)}
                         onInputImagesChange={handleInputImagesChange}
                         initialImageUrls={inputImageUrls}
+                      />
+                    ) : (
+                      <ArticleToComic
+                        userId={user?.id}
+                        remaining={user?.remaining ?? 0}
+                        isLoggedIn={!!user}
+                        allowAnonymous={allowAnonymous}
+                        comicEnabled={comicEnabled}
+                        onLoginRequest={handleWechatLogin}
+                        onImageGenerated={(url) => {
+                          setImageUrl(url || null)
+                          setImageLoading(false)
+                        }}
+                        onLoadingChange={(loading) => setImageLoading(loading)}
                       />
                     )}
                   </div>

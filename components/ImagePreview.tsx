@@ -7,7 +7,7 @@ interface ImagePreviewProps {
   inputImageUrl?: string | null // 输入图片（单张，用于修改模式）
   inputImageUrls?: string[] // 输入图片（多张，用于合成模式）
   loading: boolean
-  mode?: 'generate' | 'edit' | 'compose' // 当前模式
+  mode?: 'generate' | 'edit' | 'compose' | 'comic' // 当前模式
   onImageUpload?: (file: File) => void
   uploading?: boolean
 }
@@ -68,7 +68,7 @@ export default function ImagePreview({
           <div className="text-center text-gray-500">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
             <p className="text-lg text-gray-700">
-              {mode === 'generate' ? '生成中...' : mode === 'edit' ? '修改中...' : '合成中...'}
+              {mode === 'generate' ? '生成中...' : mode === 'edit' ? '修改中...' : mode === 'comic' ? '生成漫画分镜中...' : '合成中...'}
             </p>
           </div>
         </div>
@@ -80,6 +80,7 @@ export default function ImagePreview({
               {mode === 'generate' && <span className="px-2 py-0.5 text-xs rounded bg-blue-100 text-blue-700">文生图</span>}
               {mode === 'edit' && <span className="px-2 py-0.5 text-xs rounded bg-purple-100 text-purple-700">修改图片</span>}
               {mode === 'compose' && <span className="px-2 py-0.5 text-xs rounded bg-green-100 text-green-700">合成图片</span>}
+              {mode === 'comic' && <span className="px-2 py-0.5 text-xs rounded bg-amber-100 text-amber-700">文生漫</span>}
             </div>
             <div className="flex gap-2">
               {mode === 'generate' && onImageUpload && (
@@ -128,6 +129,7 @@ export default function ImagePreview({
                 src={imageUrl!}
                 alt="生成图片预览"
                 className="max-w-full max-h-full rounded-lg border border-gray-200 shadow-sm object-contain bg-white"
+                referrerPolicy="no-referrer"
               />
             </div>
           </div>
@@ -136,12 +138,17 @@ export default function ImagePreview({
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-center">
             <div className="mb-6">
-              <div className="text-6xl mb-4">🖼️</div>
-              <p className="text-lg text-gray-700 mb-2">图片预览面板</p>
+              <div className="text-6xl mb-4">
+                {mode === 'comic' ? '🎨' : '🖼️'}
+              </div>
+              <p className="text-lg text-gray-700 mb-2">
+                {mode === 'comic' ? '漫画分镜预览' : '图片预览面板'}
+              </p>
               <p className="text-sm text-gray-500">
                 {mode === 'generate' && '输入提示词生成图片，或上传图片进行修改'}
                 {mode === 'edit' && '上传图片后输入修改指令'}
                 {mode === 'compose' && '选择多张图片后输入合成指令'}
+                {mode === 'comic' && '输入公众号文章链接，生成漫画分镜总结'}
               </p>
             </div>
             {onImageUpload && mode === 'generate' && (
