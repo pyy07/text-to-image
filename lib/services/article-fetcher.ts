@@ -1,7 +1,10 @@
 /**
  * 文章抓取服务
  * 用于从公众号文章链接中提取标题和内容
+ * 服务端直接抓取+解析，不请求自身 API，避免 Vercel 上自调用返回 HTML 导致 JSON 解析报错
  */
+
+import * as cheerio from 'cheerio'
 
 export interface ArticleData {
   title: string
@@ -11,59 +14,67 @@ export interface ArticleData {
   imageUrls: string[]
 }
 
-/** 服务端调用时需使用绝对 URL，否则 fetch 会报 Invalid URL */
-function getApiBaseUrl(): string {
-  if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL.replace(/\/$/, '')
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
-  return 'http://localhost:3000'
-}
+const USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 
 export class ArticleFetcherService {
   /**
-   * 从 URL 抓取文章内容
+   * 从 URL 抓取文章内容（直接请求公众号并解析，不经过自身 API）
    * @param url 公众号文章链接
    */
   async fetchArticle(url: string): Promise<ArticleData> {
-    try {
-      // 验证 URL 格式
-      if (!this.isValidWechatArticleUrl(url)) {
-        throw new Error('无效的公众号文章链接')
-      }
+    if (!this.isValidWechatArticleUrl(url)) {
+      throw new Error('无效的公众号文章链接')
+    }
 
-      const baseUrl = getApiBaseUrl()
-      const response = await fetch(`${baseUrl}/api/fetch-article`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ url }),
-      })
+    const response = await fetch(url, {
+      headers: { 'User-Agent': USER_AGENT },
+    })
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || '抓取文章失败')
-      }
+    if (!response.ok) {
+      throw new Error('无法访问文章链接')
+    }
 
-      const data = await response.json()
-      return {
-        title: data.title,
-        content: data.content,
-        url: url,
-        imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls : [],
+    const html = await response.text()
+    const $ = cheerio.load(html)
+
+    const title =
+      $('meta[property="og:title"]').attr('content') ||
+      $('h1.rich_media_title').text() ||
+      '未知标题'
+
+    const contentElement = $('#js_content')
+    if (contentElement.length === 0) {
+      throw new Error('无法提取文章内容')
+    }
+
+    const content = contentElement.text().trim()
+
+    const imageUrls: string[] = []
+    contentElement.find('img').each((_, el) => {
+      const $el = $(el)
+      const src =
+        $el.attr('data-src') || $el.attr('data-echo') || $el.attr('src') || ''
+      if (!src || !src.startsWith('http')) return
+      try {
+        const absolute = new URL(src, url).href
+        if (!imageUrls.includes(absolute)) imageUrls.push(absolute)
+      } catch {
+        // 忽略无效 URL
       }
-    } catch (error) {
-      console.error('抓取文章失败:', error)
-      throw error
+    })
+
+    return {
+      title: title.trim(),
+      content,
+      url,
+      imageUrls,
     }
   }
 
-  /**
-   * 验证是否为有效的公众号文章链接
-   */
   private isValidWechatArticleUrl(url: string): boolean {
     try {
       const urlObj = new URL(url)
-      // 检查是否为微信公众号文章域名
       return (
         urlObj.hostname === 'mp.weixin.qq.com' ||
         urlObj.hostname === 'www.mp.weixin.qq.com'
@@ -73,15 +84,9 @@ export class ArticleFetcherService {
     }
   }
 
-  /**
-   * 清理文章内容，移除 HTML 标签和多余空白
-   */
   cleanContent(content: string): string {
-    // 移除 HTML 标签
     let cleaned = content.replace(/<[^>]*>/g, '')
-    // 移除多余的空白字符
     cleaned = cleaned.replace(/\s+/g, ' ').trim()
-    // 移除特殊字符
     cleaned = cleaned.replace(/&nbsp;/g, ' ')
     cleaned = cleaned.replace(/&amp;/g, '&')
     cleaned = cleaned.replace(/&lt;/g, '<')
@@ -91,5 +96,4 @@ export class ArticleFetcherService {
   }
 }
 
-// 导出单例
 export const articleFetcher = new ArticleFetcherService()
