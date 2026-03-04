@@ -11,6 +11,20 @@ import type { ComicGeminiConfig } from '@/lib/config/comic'
 /** 文章配图最多传入张数，过多会增大请求体积并可能触发 API 限制 */
 const MAX_IMAGES = 12
 
+/** Gemini 支持的图片 MIME（不支持 SVG 等矢量格式） */
+const GEMINI_SUPPORTED_IMAGE_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/webp',
+  'image/gif',
+]
+
+function isSupportedImageMime(mimeType: string): boolean {
+  const base = mimeType.split(';')[0].trim().toLowerCase()
+  return GEMINI_SUPPORTED_IMAGE_TYPES.includes(base)
+}
+
 export interface GeminiImagePart {
   mimeType: string
   data: string // base64
@@ -18,7 +32,7 @@ export interface GeminiImagePart {
 
 /**
  * 将图片 URL 下载并转为 Gemini 可用的 inlineData（base64）
- * 最多保留 MAX_IMAGES 张，失败的单张跳过
+ * 最多保留 MAX_IMAGES 张；SVG 等不支持的格式会跳过，失败的单张跳过
  */
 export async function downloadImagesForGemini(
   imageUrls: string[]
@@ -34,9 +48,10 @@ export async function downloadImagesForGemini(
       const blob = await res.blob()
       const mimeType = blob.type || 'image/png'
       if (!mimeType.startsWith('image/')) throw new Error('非图片类型')
+      if (!isSupportedImageMime(mimeType)) throw new Error(`不支持的图片格式: ${mimeType}`)
       const buf = await blob.arrayBuffer()
       const base64 = Buffer.from(buf).toString('base64')
-      return { mimeType, data: base64 }
+      return { mimeType: mimeType.split(';')[0].trim(), data: base64 }
     })
   )
   const out: GeminiImagePart[] = []

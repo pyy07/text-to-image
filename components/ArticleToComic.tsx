@@ -118,14 +118,17 @@ export default function ArticleToComic({
       return
     }
 
-    // 验证 URL 格式
+    // 验证 URL 格式：公众号或 GitHub 仓库
     try {
       const urlObj = new URL(articleUrl)
-      if (
-        urlObj.hostname !== 'mp.weixin.qq.com' &&
-        urlObj.hostname !== 'www.mp.weixin.qq.com'
-      ) {
-        setError('仅支持微信公众号文章链接')
+      const isWechat =
+        urlObj.hostname === 'mp.weixin.qq.com' ||
+        urlObj.hostname === 'www.mp.weixin.qq.com'
+      const isGitHub =
+        (urlObj.hostname === 'github.com' || urlObj.hostname === 'www.github.com') &&
+        /^\/[^/]+\/[^/]+(\/|$)/.test(urlObj.pathname)
+      if (!isWechat && !isGitHub) {
+        setError('仅支持微信公众号文章链接或 GitHub 仓库链接')
         return
       }
     } catch {
@@ -225,18 +228,18 @@ export default function ArticleToComic({
         <>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              公众号文章链接
+              文章或项目链接
             </label>
             <input
               type="url"
               value={articleUrl}
               onChange={(e) => setArticleUrl(e.target.value)}
-              placeholder="https://mp.weixin.qq.com/s/..."
+              placeholder="公众号文章 https://mp.weixin.qq.com/s/... 或 GitHub 仓库 https://github.com/owner/repo"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-gray-900 placeholder-gray-400"
               disabled={loading}
             />
             <p className="mt-2 text-xs text-gray-500">
-              请输入微信公众号文章链接，AI 将自动提取内容并生成多分镜漫画
+              支持微信公众号文章或 GitHub 仓库（将使用 README），AI 将自动提取内容并生成多分镜漫画
             </p>
           </div>
 

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { isComicEnabled } from '@/lib/config/comic'
 import { comicGenerationService } from '@/lib/services/comic-generation'
 import { uploadImageBufferToVercelBlob } from '@/lib/storage/vercel-blob'
+import { isValidGitHubRepoUrl } from '@/lib/services/github-fetcher'
 
 const COMIC_TASK_EXPIRES_MINUTES = 30
 
@@ -29,12 +30,13 @@ export async function POST(request: NextRequest) {
 
     try {
       const urlObj = new URL(articleUrl)
-      if (
-        urlObj.hostname !== 'mp.weixin.qq.com' &&
-        urlObj.hostname !== 'www.mp.weixin.qq.com'
-      ) {
+      const isWechat =
+        urlObj.hostname === 'mp.weixin.qq.com' ||
+        urlObj.hostname === 'www.mp.weixin.qq.com'
+      const isGitHub = isValidGitHubRepoUrl(articleUrl)
+      if (!isWechat && !isGitHub) {
         return NextResponse.json(
-          { error: '仅支持微信公众号文章链接' },
+          { error: '仅支持微信公众号文章链接或 GitHub 仓库链接' },
           { status: 400 }
         )
       }

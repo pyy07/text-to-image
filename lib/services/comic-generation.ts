@@ -11,6 +11,7 @@ import {
   generateComicWithGemini,
 } from './comic-gemini'
 import { articleFetcher } from './article-fetcher'
+import { isValidGitHubRepoUrl, githubFetcher } from './github-fetcher'
 
 export interface ComicGenerationResult {
   title: string
@@ -20,10 +21,11 @@ export interface ComicGenerationResult {
 export class ComicGenerationService {
   /**
    * 生成漫画：将文章内容与文中引用的图片一并提交给模型，由其规划分镜并输出一张九宫格漫画分镜总结图。
+   * 支持微信公众号文章链接或 GitHub 仓库链接（仅使用 README）。
    * 需 COMIC_ENABLED=true 且配置 COMIC_GEMINI_BASE_URL、COMIC_GEMINI_API_KEY，未配置则报错。
-   * @param articleUrl 文章链接
+   * @param sourceUrl 文章链接或 GitHub 仓库链接
    */
-  async generateComic(articleUrl: string): Promise<ComicGenerationResult> {
+  async generateComic(sourceUrl: string): Promise<ComicGenerationResult> {
     if (!isComicEnabled()) {
       throw new Error('文生漫功能未开启（COMIC_ENABLED 未设置为 true）')
     }
@@ -35,7 +37,9 @@ export class ComicGenerationService {
       )
     }
 
-    const article = await articleFetcher.fetchArticle(articleUrl)
+    const article = isValidGitHubRepoUrl(sourceUrl)
+      ? await githubFetcher.fetchReadme(sourceUrl)
+      : await articleFetcher.fetchArticle(sourceUrl)
     const cleanedContent = articleFetcher.cleanContent(article.content)
     const prompt = this.buildArticleToComicPrompt(
       article.title,
