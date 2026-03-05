@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { COMIC_STYLE_PRESETS } from '@/lib/constants/comic-styles'
 
 const COMIC_DISABLED_MESSAGE = '功能未启用，请联系管理员，微信号为LukePanYY'
 
@@ -35,6 +36,8 @@ export default function ArticleToComic({
   onLoadingChange,
 }: ArticleToComicProps) {
   const [articleUrl, setArticleUrl] = useState('')
+  const [stylePreset, setStylePreset] = useState('default')
+  const [styleCustom, setStyleCustom] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [taskId, setTaskId] = useState<string | null>(null)
@@ -161,7 +164,12 @@ export default function ArticleToComic({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ articleUrl, userId }),
+        body: JSON.stringify({
+          articleUrl,
+          userId,
+          stylePreset: stylePreset || undefined,
+          styleCustom: styleCustom.trim() || undefined,
+        }),
       })
 
       if (!response.ok) {
@@ -186,6 +194,9 @@ export default function ArticleToComic({
     onLoadingChange?.(false)
     setError(null)
     setArticleUrl('')
+    setStylePreset('default')
+    setStyleCustom('')
+    onImageGenerated?.('') // 点击「生成新的漫画」时清空右侧预览
   }
 
   const getProgressColor = () => {
@@ -241,6 +252,47 @@ export default function ArticleToComic({
             <p className="mt-2 text-xs text-gray-500">
               支持微信公众号文章或 GitHub 仓库（将使用 README），AI 将自动提取内容并生成多分镜漫画
             </p>
+          </div>
+
+          {/* 风格选项：可选预设，也可选「自定义」只写提示词；不选又不写则用默认风格 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              漫画风格（选填）
+            </label>
+            <select
+              value={stylePreset}
+              onChange={(e) => setStylePreset(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-gray-900 bg-white"
+              disabled={loading}
+            >
+              {COMIC_STYLE_PRESETS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}：{p.description}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1.5 text-xs text-gray-500">
+              {stylePreset === 'custom'
+                ? '选「自定义」时在下方直接写风格提示词，不填则使用默认风格'
+                : '可选填下方补充描述，与预设叠加生效；不选风格也不填则用默认风格'}
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              {stylePreset === 'custom' ? '风格描述（选填）' : '补充风格描述（选填）'}
+            </label>
+            <textarea
+              value={styleCustom}
+              onChange={(e) => setStyleCustom(e.target.value)}
+              placeholder={
+                stylePreset === 'custom'
+                  ? '例如：水彩手绘感、配色偏蓝紫、线条略粗、留白多、表情夸张……'
+                  : '例如：配色偏蓝紫色、想要更多留白、表情再夸张一点……'
+              }
+              rows={2}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-gray-900 placeholder-gray-400 resize-y"
+              disabled={loading}
+            />
           </div>
 
           {/* 剩余次数提示 */}

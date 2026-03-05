@@ -38,7 +38,7 @@ export default function GalleryPage() {
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
-  const [activeTab, setActiveTab] = useState<'images' | 'comics'>('images')
+  const [activeTab, setActiveTab] = useState<'images' | 'comics'>('comics')
   const [allowDelete, setAllowDelete] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const pageSize = 12
@@ -164,16 +164,6 @@ export default function GalleryPage() {
             {/* 标签页切换 */}
             <div className="mb-4 flex gap-2 border-b border-gray-200">
               <button
-                onClick={() => handleTabChange('images')}
-                className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
-                  activeTab === 'images'
-                    ? 'text-orange-600 border-b-2 border-orange-600'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                图片案例
-              </button>
-              <button
                 onClick={() => handleTabChange('comics')}
                 className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
                   activeTab === 'comics'
@@ -182,6 +172,16 @@ export default function GalleryPage() {
                 }`}
               >
                 漫画案例
+              </button>
+              <button
+                onClick={() => handleTabChange('images')}
+                className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+                  activeTab === 'images'
+                    ? 'text-orange-600 border-b-2 border-orange-600'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                图片案例
               </button>
             </div>
 

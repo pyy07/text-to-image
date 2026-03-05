@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { articleUrl, userId } = body
+    const { articleUrl, userId, stylePreset, styleCustom } = body
 
     if (!articleUrl) {
       return NextResponse.json({ error: '缺少文章链接' }, { status: 400 })
@@ -45,7 +45,11 @@ export async function POST(request: NextRequest) {
     }
 
     const expiresAt = new Date(Date.now() + COMIC_TASK_EXPIRES_MINUTES * 60 * 1000)
-    const description = JSON.stringify({ articleUrl })
+    const description = JSON.stringify({
+      articleUrl,
+      stylePreset: stylePreset ?? undefined,
+      styleCustom: styleCustom ?? undefined,
+    })
 
     const task = await prisma.task.create({
       data: {
@@ -58,8 +62,12 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    const styleOptions = {
+      stylePreset: typeof stylePreset === 'string' ? stylePreset : undefined,
+      styleCustom: typeof styleCustom === 'string' ? styleCustom : undefined,
+    }
     console.log('[comic] 创建任务 taskId=%s 已入库，异步执行 executeComicGeneration', task.id)
-    executeComicGeneration(task.id, articleUrl).catch(console.error)
+    executeComicGeneration(task.id, articleUrl, styleOptions).catch(console.error)
 
     return NextResponse.json({
       taskId: task.id,
@@ -75,10 +83,20 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/** 风格选项，与 ComicStyleOptions 一致 */
+interface ComicStyleOptions {
+  stylePreset?: string
+  styleCustom?: string
+}
+
 /**
  * 异步执行漫画生成任务。成功时必定将 task 置为 completed，异常时置为 failed，避免卡在 processing。
  */
-async function executeComicGeneration(taskId: string, articleUrl: string) {
+async function executeComicGeneration(
+  taskId: string,
+  articleUrl: string,
+  styleOptions?: ComicStyleOptions
+) {
   console.log('[comic] executeComicGeneration 开始 taskId=%s articleUrl=%s', taskId, articleUrl)
   try {
     await prisma.task.update({
@@ -87,7 +105,7 @@ async function executeComicGeneration(taskId: string, articleUrl: string) {
     })
     console.log('[comic] taskId=%s 已设为 processing', taskId)
 
-    const result = await comicGenerationService.generateComic(articleUrl)
+    const result = await comicGenerationService.generateComic(articleUrl, styleOptions)
     const hasImage = typeof result?.imageUrl === 'string' && result.imageUrl.trim().length > 0
     console.log('[comic] taskId=%s generateComic 返回 title=%s imageUrl存在=%s length=%s', taskId, result?.title ?? '', hasImage, hasImage ? String(result!.imageUrl.length) : '0')
     if (!hasImage) {
