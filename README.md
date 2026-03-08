@@ -1,22 +1,26 @@
 # 文生图生成器（Text-to-Image）
 
-一个基于 Next.js 的文生图平台，通过 **OpenAI 兼容接口**调用 modelscope 的 **`z-image`** 模型生成图片，并将生成结果以 **URL（对象存储/外链）** 的形式保存为素材。
+一个基于 Next.js 的文生图平台，通过 **OpenAI 兼容接口**调用 modelscope 的 **`z-image`** 等模型生成图片，并将生成结果以 **URL（对象存储/外链）** 的形式保存为素材。
 
 ## 功能特性
 
 - 🖼️ 根据自然语言描述生成图片（文生图）
 - 🤖 使用 OpenAI 兼容接口（支持自定义 `OPENAI_BASE_URL`），默认适配 modelscope
+- 🧪 **模型试用**（`/trial`）：多模态模型试用（文生图/编辑/视频/音频/文本等），走 UniAPI，管理员与 VIP 无限制
+- 📚 **案例与试用案例**：素材进案例展示；试用生成单独「试用案例」Tab（`type=trial`）
+- 👑 **VIP 用户**：在管理后台用户管理中「设为VIP」，即可使用高级/试用模型，无需环境变量
 - 🔐 用户使用次数限制（默认 3 次）
 - 🔑 微信登录支持
 - 💾 素材自动保存和管理
 - 📱 响应式设计
+- 📖 **文生漫**（可选）：根据脚本生成漫画分镜，使用 UniAPI 的 Gemini 端点
 
 ## 技术栈
 
 - **框架**: Next.js 14 (App Router)
 - **语言**: TypeScript
 - **数据库**: PostgreSQL (Prisma ORM)
-- **AI**: OpenAI 兼容 API（modelscope z-image）
+- **AI**: OpenAI 兼容 API（modelscope z-image）；模型试用与文生漫可选 UniAPI
 - **认证**: NextAuth.js + 微信 OAuth
 - **样式**: Tailwind CSS
 
@@ -30,36 +34,41 @@ npm install
 
 ### 2. 配置环境变量
 
-复制 `.env.example` 为 `.env` 并填写相关配置：
+复制 `env.example` 为 `.env` 并填写相关配置：
 
 ```bash
-cp .env.example .env
+cp env.example .env
 ```
 
-需要配置的变量（详见 `.env.example`）：
+需要配置的变量（详见 `env.example`，复制为 `.env` 后修改）：
 
 **必填项：**
 - `DATABASE_URL`: PostgreSQL 数据库连接字符串
-- 至少一个 AI Provider 的 API Key：
-  - `OPENAI_API_KEY`: OpenAI 兼容接口的 API Key（modelscope 或其他兼容服务）
+- 至少一个 AI Provider 的 API Key：`OPENAI_API_KEY`（OpenAI 兼容 / modelscope 等）
 - `NEXTAUTH_SECRET`: NextAuth 密钥
 - `NEXTAUTH_URL`: 应用访问地址
 
-**AI Provider 配置（可选）：**
-- `AI_PROVIDER`: 默认使用的 Provider（`gemini` 或 `openai`）
-- `OPENAI_MODEL`: 图片模型名称（默认：`z-image`）
-- `OPENAI_BASE_URL`: OpenAI API 基础 URL（默认：`https://api.openai.com/v1`）
-  - 可用于配置代理服务或兼容 API
-  - 示例：`https://api.openai-proxy.com/v1`
+**首页文生图（OpenAI 兼容）：**
+- `OPENAI_BASE_URL`: 首页文生图/合成/编辑使用的接口地址（建议 ModelScope）
+- `OPENAI_MODELS` / `OPENAI_MODEL`: 允许的模型与默认模型（如 `z-image`）
 - `OPENAI_IMAGE_SIZE`: 图片尺寸（默认：`1024x1024`）
 
-**其他可选配置：**
-- `WECHAT_APP_ID`: 微信开放平台 AppID
-- `WECHAT_APP_SECRET`: 微信开放平台 AppSecret
-- `ALLOW_ANONYMOUS`: 允许匿名访问（本地测试用）
-- `HTTPS_PROXY` / `HTTP_PROXY`: 代理地址
+**模型试用（可选）：**
+- `OPENAI_UNIAPI_BASE_URL`: 模型试用与文生漫使用的 UniAPI 地址（如 `https://api.uniapi.io/v1`）
+- `OPENAI_UNIAPI_API_KEY`: 试用专用 Key（不填则使用 `OPENAI_API_KEY`）
+- `TRIAL_MODELS_IMAGE` / `TRIAL_MODELS_VIDEO` 等：各模态的试用模型列表（见 `env.example`）
+- 试用权限：管理员或后台「用户管理」中设为 VIP 的用户可用，无需环境变量
 
-详细配置说明和示例请参考 `.env.example` 文件中的注释。
+**文生漫（可选）：**
+- `COMIC_ENABLED`: 设为 `true` 时启用，使用 UniAPI 的 Gemini 端点（从 `OPENAI_UNIAPI_BASE_URL` 自动推导）
+
+**其他可选：**
+- `AI_PROVIDERS` / `AI_PROVIDER`: 多 Provider 时使用（如 `gemini`, `openai`）
+- `WECHAT_APP_ID` / `WECHAT_APP_SECRET`: 微信登录
+- `ALLOW_ANONYMOUS`: 允许匿名访问（仅本地测试）
+- `HTTPS_PROXY` / `HTTP_PROXY`: 代理
+
+详细说明与示例见 `env.example` 内注释。
 
 ### 3. 初始化数据库
 
@@ -81,23 +90,31 @@ npm run dev
 .
 ├── app/                    # Next.js App Router 页面和 API 路由
 │   ├── api/               # API 路由
-│   │   ├── generate/      # 图片生成接口
-│   │   ├── user/          # 用户信息接口
-│   │   ├── assets/        # 素材管理接口
-│   │   └── auth/          # 认证接口
+│   │   ├── generate/      # 图片生成
+│   │   ├── edit/          # 图片编辑
+│   │   ├── assets/        # 素材管理（含案例、试用 type=trial）
+│   │   ├── features/      # 功能开关（含 advanced-models）
+│   │   ├── providers/     # 首页 Provider 列表（含 advanced 试用）
+│   │   ├── trial-models/  # 模型试用可用模型列表
+│   │   ├── comic/         # 文生漫
+│   │   ├── user/          # 用户信息
+│   │   ├── auth/          # 认证
+│   │   └── admin/         # 管理端（用户管理含 VIP、网站设置等）
+│   ├── trial/             # 模型试用页 /trial
+│   ├── gallery/           # 案例页（图片案例 + 试用案例）
+│   ├── admin/             # 管理后台
 │   └── page.tsx           # 首页
-├── components/            # React 组件
-├── lib/                   # 工具函数
+├── components/            # React 组件（ImageGenerator、ImageComposer、Navigation 等）
+├── lib/                   # 工具与配置
 │   ├── prisma.ts         # Prisma 客户端
-│   ├── ai/               # AI Provider 抽象层
-│   │   ├── types.ts      # Provider 类型定义
-│   │   ├── factory.ts    # Provider 工厂函数
-│   │   └── providers/    # 具体 Provider 实现
-│   │       ├── gemini.ts # Gemini Provider
-│   │       └── openai.ts # OpenAI Provider
-│   └── auth.ts           # 认证相关函数
-├── prisma/               # Prisma schema
-└── public/               # 静态资源
+│   ├── advanced-models-auth.ts  # 试用/高级模型权限（admin + user.isVip）
+│   ├── ai/                # AI Provider 抽象层
+│   │   ├── providers/     # openai（含 UniAPI 试用）、gemini 等
+│   │   └── ...
+│   ├── config/            # features、comic、trial-models 等
+│   └── auth.ts            # 认证相关
+├── prisma/                # Schema 与迁移（User.isVip、Asset.type 等）
+└── public/
 ```
 
 ## 部署
@@ -252,6 +269,17 @@ ALLOW_ANONYMOUS=true
 - ✅ 不限制使用次数
 - ✅ 生成的图片仍会保存为素材（保存 URL）
 - ⚠️ 仅用于本地开发，生产环境请勿启用
+
+## 模型试用与 VIP
+
+- **试用页**：`/trial` 提供多模态模型试用（文生图、编辑、视频、音频、文本等），需配置 `OPENAI_UNIAPI_BASE_URL` 与 `OPENAI_UNIAPI_API_KEY`（或沿用 `OPENAI_API_KEY`），试用模型列表见 `env.example` 中的 `TRIAL_MODELS_*`。
+- **权限**：仅**管理员**或**VIP 用户**可使用模型试用；管理员与 VIP 不限制使用次数。
+- **设为 VIP**：在 **管理后台 → 用户管理** 中，对用户点击「设为VIP」即可，无需配置环境变量。
+- **试用案例**：试用生成的素材会进入「试用案例」分类（`Asset.type='trial'`），在案例页有单独 Tab。
+
+## 文生漫
+
+开启 `COMIC_ENABLED=true` 后，使用 UniAPI 的 Gemini 端点（从 `OPENAI_UNIAPI_BASE_URL` 自动推导 `.../gemini`）根据脚本生成漫画分镜。详细说明见 `docs/COMIC_FEATURE.md`。
 
 ## 开发
 
