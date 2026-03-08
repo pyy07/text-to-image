@@ -20,11 +20,14 @@ model User {
   usageCount    Int       @default(0)
   maxUsage      Int       @default(3)
   isPermanent   Boolean   @default(false)
+  isAdmin       Boolean   @default(false) // 管理员可登录后台
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  assets Asset[]
-  tasks  Task[]
+  assets           Asset[]
+  tasks            Task[]
+  auditLogs        AuditLog[]  @relation("AuditLogUser")
+  auditLogsAsActor AuditLog[]   @relation("AuditLogActor")
 
   @@map("users")
 }
@@ -82,5 +85,35 @@ model Task {
   @@index([status, createdAt])
   @@index([expiresAt])
   @@map("tasks")
+}
+
+// 操作/审计日志：记录管理员与关键操作
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?  // 操作用户（可为空表示系统）
+  actorId    String?  // 管理员 ID（后台操作时）
+  action     String   // 如 user.update, user.set_permanent, settings.update
+  targetType String?  // 如 user, asset, settings
+  targetId   String?  // 目标实体 ID
+  details    String?  @db.Text // JSON 或简要描述
+  createdAt  DateTime @default(now())
+
+  user  User? @relation("AuditLogUser", fields: [userId], references: [id], onDelete: SetNull)
+  actor User? @relation("AuditLogActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
+
+// 网站设置：键值存储
+model SiteSetting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String @db.Text
+  updatedAt DateTime @updatedAt
+
+  @@map("site_settings")
 }
 

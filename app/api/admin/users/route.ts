@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireAdmin, getAdminFromRequest } from '@/lib/admin-auth'
+import { createAuditLog } from '@/lib/audit-log'
 
-// TODO: 添加管理员权限验证
 export async function GET(request: NextRequest) {
+  const unauth = await requireAdmin(request)
+  if (unauth) return unauth
   try {
     const users = await prisma.user.findMany({
       orderBy: {
@@ -30,6 +33,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const unauth = await requireAdmin(request)
+  if (unauth) return unauth
   try {
     const body = await request.json()
     const { userId, isPermanent, resetUsage, increaseUsage } = body
@@ -66,6 +71,17 @@ export async function PATCH(request: NextRequest) {
       where: { id: userId },
       data: updateData,
     })
+
+    const admin = await getAdminFromRequest(request)
+    if (admin) {
+      await createAuditLog({
+        actorId: admin.id === 'env-admin' ? undefined : admin.id,
+        action: 'user.update',
+        targetType: 'user',
+        targetId: userId,
+        details: JSON.stringify({ isPermanent, resetUsage, increaseUsage }),
+      })
+    }
 
     return NextResponse.json({ user })
   } catch (error) {
