@@ -21,6 +21,7 @@ model User {
   maxUsage      Int       @default(3)
   isPermanent   Boolean   @default(false)
   isAdmin       Boolean   @default(false) // 管理员可登录后台
+  isVip         Boolean   @default(false) // VIP 用户可用模型试用，在后台用户管理设置
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -44,7 +45,7 @@ model Asset {
   inputImageUrl String? @db.Text
   // 历史字段：曾用于保存 SVG/HTML 代码。文生图后保留以兼容旧数据。
   svgCode     String?  @db.Text
-  // 内容类型：当前仅使用 image（旧数据可能为 svg/html）
+  // 内容类型：image / svg / html（旧数据）；trial=模型试用生成的图片
   type        String   @default("image")
   // 文生图：对象存储/外链地址（不做双写）
   imageUrl    String?  @db.Text
@@ -74,6 +75,7 @@ model Task {
   provider      String?
   model         String?
   size          String?
+  source        String?  // 来源：trial=模型试用，null=普通
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   expiresAt     DateTime // 30 分钟后过期

@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
         usageCount: true,
         maxUsage: true,
         isPermanent: true,
+        isVip: true,
         createdAt: true,
       },
     })
@@ -37,7 +38,7 @@ export async function PATCH(request: NextRequest) {
   if (unauth) return unauth
   try {
     const body = await request.json()
-    const { userId, isPermanent, resetUsage, increaseUsage } = body
+    const { userId, isPermanent, isVip, resetUsage, increaseUsage } = body
 
     if (!userId) {
       return NextResponse.json(
@@ -50,6 +51,10 @@ export async function PATCH(request: NextRequest) {
 
     if (typeof isPermanent === 'boolean') {
       updateData.isPermanent = isPermanent
+    }
+
+    if (typeof isVip === 'boolean') {
+      updateData.isVip = isVip
     }
 
     if (resetUsage) {
@@ -79,7 +84,7 @@ export async function PATCH(request: NextRequest) {
         action: 'user.update',
         targetType: 'user',
         targetId: userId,
-        details: JSON.stringify({ isPermanent, resetUsage, increaseUsage }),
+        details: JSON.stringify({ isPermanent, isVip, resetUsage, increaseUsage }),
       })
     }
 

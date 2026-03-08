@@ -36,10 +36,15 @@ export function useTaskPolling({
   const pollTask = async () => {
     if (!taskId) return
 
+    const headers: Record<string, string> = {}
+    if (userId) headers['x-user-id'] = userId
+    if (typeof window !== 'undefined') {
+      const t = localStorage.getItem('admin_token')
+      if (t) headers['Authorization'] = `Bearer ${t}`
+    }
+
     try {
-      const res = await fetch(`/api/tasks/${taskId}`, {
-        headers: userId ? { 'x-user-id': userId } : {},
-      })
+      const res = await fetch(`/api/tasks/${taskId}`, { headers })
       const data = await res.json()
 
       if (res.ok) {

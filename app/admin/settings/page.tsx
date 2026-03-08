@@ -13,6 +13,12 @@ const PRESET_KEYS = [
   'maintenance_message',
 ]
 
+const PRESET_LABELS: Record<string, string> = {
+  site_name: '网站名称',
+  default_max_usage: '默认最大使用次数',
+  maintenance_message: '维护提示文案',
+}
+
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
@@ -117,13 +123,15 @@ export default function AdminSettingsPage() {
           <div className="space-y-3">
             {PRESET_KEYS.map((key) => (
               <div key={key} className="flex items-center gap-3">
-                <label className="w-40 shrink-0 text-sm text-slate-600">{key}</label>
+                <label className="w-72 shrink-0 text-sm text-slate-600" title={key}>
+                  {PRESET_LABELS[key] ?? key}
+                </label>
                 <input
                   type="text"
                   value={settings[key] ?? ''}
                   onChange={(e) => handlePresetChange(key, e.target.value)}
                   className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
-                  placeholder={`${key} 的值`}
+                  placeholder={PRESET_LABELS[key] ? `可选，如 user-id-1,user-id-2` : `${key} 的值`}
                 />
               </div>
             ))}

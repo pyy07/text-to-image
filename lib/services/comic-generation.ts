@@ -2,7 +2,7 @@
  * 漫画生成服务
  * 将文章内容与文中配图一并提交给模型，由模型自行规划分镜并输出一张九宫格漫画分镜总结图。
  * 产出物仅为一张分镜图片，无摘要与分镜列表。
- * 需 COMIC_ENABLED=true 且配置 COMIC_GEMINI_BASE_URL、COMIC_GEMINI_API_KEY，未配置则直接报错。
+ * 需 COMIC_ENABLED=true 且配置 OPENAI_UNIAPI_BASE_URL、OPENAI_UNIAPI_API_KEY（与模型试用共用），未配置则直接报错。
  */
 
 import { isComicEnabled, getComicGeminiConfig } from '@/lib/config/comic'
@@ -28,7 +28,7 @@ export class ComicGenerationService {
   /**
    * 生成漫画：将文章内容与文中引用的图片一并提交给模型，由其规划分镜并输出一张九宫格漫画分镜总结图。
    * 支持微信公众号文章链接或 GitHub 仓库链接（仅使用 README）；可选风格预设与自定义描述。
-   * 需 COMIC_ENABLED=true 且配置 COMIC_GEMINI_BASE_URL、COMIC_GEMINI_API_KEY，未配置则报错。
+   * 需 COMIC_ENABLED=true 且配置 OPENAI_UNIAPI_BASE_URL、OPENAI_UNIAPI_API_KEY，未配置则报错。
    * @param sourceUrl 文章链接或 GitHub 仓库链接
    * @param styleOptions 可选：stylePreset 预设 id、styleCustom 用户自定义风格描述
    */
@@ -43,7 +43,7 @@ export class ComicGenerationService {
     const geminiConfig = getComicGeminiConfig()
     if (!geminiConfig) {
       throw new Error(
-        '文生漫未配置 Gemini：请设置 COMIC_GEMINI_BASE_URL 与 COMIC_GEMINI_API_KEY'
+        '文生漫未配置：请设置 COMIC_ENABLED=true 并配置 OPENAI_UNIAPI_BASE_URL 与 OPENAI_UNIAPI_API_KEY'
       )
     }
 

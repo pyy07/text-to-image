@@ -15,6 +15,8 @@ interface ImageGeneratorProps {
   onImageUpload?: (file: File) => void
   uploadingImage?: boolean
   onModeChange?: (mode: 'generate' | 'edit', inputImageUrl?: string | null) => void
+  /** 拉取模型列表的 API，默认 /api/providers，模型试用页传 /api/providers/advanced */
+  providersApiUrl?: string
 }
 
 interface Provider {
@@ -37,6 +39,7 @@ export default function ImageGenerator({
   onImageUpload,
   uploadingImage = false,
   onModeChange,
+  providersApiUrl = '/api/providers',
 }: ImageGeneratorProps) {
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
@@ -47,9 +50,28 @@ export default function ImageGenerator({
   const [selectedModel, setSelectedModel] = useState<string>('')
   const [size, setSize] = useState<string>(SIZES[0])
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null)
+  const [isAdminSession, setIsAdminSession] = useState(false)
 
   useEffect(() => {
-    fetch('/api/providers')
+    setIsAdminSession(!!(typeof window !== 'undefined' && localStorage.getItem('admin_token')))
+  }, [])
+
+  // 请求头：若已登录管理后台则带上 admin_token，后端视为管理员并不受次数限制
+  const getAuthHeaders = (): Record<string, string> => {
+    const h: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (typeof window !== 'undefined') {
+      const t = localStorage.getItem('admin_token')
+      if (t) h['Authorization'] = `Bearer ${t}`
+    }
+    return h
+  }
+
+  useEffect(() => {
+    const headers: Record<string, string> = { ...getAuthHeaders() }
+    if (userId && providersApiUrl.includes('advanced')) {
+      headers['x-user-id'] = userId
+    }
+    fetch(providersApiUrl, { headers })
       .then((res) => res.json())
       .then((data) => {
         const supported = (data.providers || []).filter((p: Provider) => p.name === 'openai')
@@ -64,7 +86,7 @@ export default function ImageGenerator({
       .catch((e) => {
         console.error('获取 Provider 列表失败:', e)
       })
-  }, [])
+  }, [providersApiUrl])
 
   useEffect(() => {
     const provider = providers.find((p) => p.name === selectedProvider)
@@ -83,35 +105,35 @@ export default function ImageGenerator({
       return
     }
 
-    // 如果不允许匿名访问，要求登录并检查使用次数
-    if (!allowAnonymous) {
+    // 管理员（已登录后台）不受限制；否则按匿名开关与登录状态校验
+    if (!isAdminSession && !allowAnonymous) {
       if (!isLoggedIn || !userId) {
         setError('请先登录后再生成图片')
         onLoginRequest()
         return
       }
-
       if (currentRemaining === 0 && remaining !== -1) {
         setError('使用次数已用完')
         return
       }
     }
-    // 如果允许匿名访问，无论是否登录都不检查使用次数
 
     setLoading(true)
     setError(null)
     onLoadingChange?.(true)
 
     try {
+      const fromTrial = providersApiUrl.includes('advanced')
       const response = await fetch('/api/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           description,
           userId: userId || undefined,
           provider: selectedProvider || undefined,
           model: selectedModel || undefined,
           size,
+          fromTrial: fromTrial || undefined,
         }),
       })
 
@@ -183,29 +205,27 @@ export default function ImageGenerator({
       return
     }
 
-    // 如果不允许匿名访问，要求登录并检查使用次数
-    if (!allowAnonymous) {
+    if (!isAdminSession && !allowAnonymous) {
       if (!isLoggedIn || !userId) {
         setError('请先登录后再编辑图片')
         onLoginRequest()
         return
       }
-
       if (currentRemaining === 0 && remaining !== -1) {
         setError('使用次数已用完')
         return
       }
     }
-    // 如果允许匿名访问，无论是否登录都不检查使用次数
 
     setLoading(true)
     setError(null)
     onLoadingChange?.(true)
 
     try {
+      const fromTrial = providersApiUrl.includes('advanced')
       const response = await fetch('/api/edit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           description,
           userId: userId || undefined,
@@ -213,6 +233,7 @@ export default function ImageGenerator({
           model: selectedModel || undefined,
           size,
           inputImageUrl: imageUrl,
+          fromTrial: fromTrial || undefined,
         }),
       })
 
@@ -262,35 +283,37 @@ export default function ImageGenerator({
             }
             className="w-full p-3 sm:p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50 resize-none text-sm sm:text-base"
             rows={5}
-            maxLength={500}
+            maxLength={2000}
             disabled={
               loading ||
-              (!allowAnonymous && !isLoggedIn && !description.trim()) ||
+              (!allowAnonymous && !isLoggedIn && !isAdminSession && !description.trim()) ||
               (isLoggedIn && currentRemaining === 0 && remaining !== -1)
             }
           />
-          <div className="absolute bottom-2 right-2 text-xs text-gray-400">{description.length}/500</div>
+          <div className="absolute bottom-2 right-2 text-xs text-gray-400">{description.length}/2000</div>
         </div>
       </div>
 
       {providers.length > 0 && (
         <div className="mb-4 sm:mb-6 space-y-3 sm:space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">AI 模型提供商</label>
-            <select
-              value={selectedProvider}
-              onChange={(e) => setSelectedProvider(e.target.value)}
-              className="w-full p-2.5 sm:p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white text-sm sm:text-base"
-              disabled={loading}
-            >
-              {providers.map((provider) => (
-                <option key={provider.name} value={provider.name}>
-                  {provider.name === 'openai' ? 'OpenAI 兼容接口' : provider.name}
-                  {provider.configured ? '' : ' (未配置)'}
-                </option>
-              ))}
-            </select>
-          </div>
+          {!providersApiUrl.includes('advanced') && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">AI 模型提供商</label>
+              <select
+                value={selectedProvider}
+                onChange={(e) => setSelectedProvider(e.target.value)}
+                className="w-full p-2.5 sm:p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white text-sm sm:text-base"
+                disabled={loading}
+              >
+                {providers.map((provider) => (
+                  <option key={provider.name} value={provider.name}>
+                    {provider.name === 'openai' ? 'OpenAI 兼容接口' : provider.name}
+                    {provider.configured ? '' : ' (未配置)'}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">模型</label>
@@ -328,15 +351,15 @@ export default function ImageGenerator({
         </div>
       )}
 
-      {!allowAnonymous && !isLoggedIn && (
+      {!allowAnonymous && !isLoggedIn && !isAdminSession && (
         <div className="mb-4 sm:mb-6 p-2.5 sm:p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
           <p className="text-xs sm:text-sm text-yellow-800">生成图片需要登录，每个用户默认可以使用 3 次</p>
         </div>
       )}
-      {isLoggedIn && !allowAnonymous && (
+      {(isLoggedIn || isAdminSession) && !allowAnonymous && (
         <div className="mb-4 sm:mb-6 p-2.5 sm:p-3 bg-blue-50 border border-blue-200 rounded-lg">
           <p className="text-xs sm:text-sm text-blue-800">
-            剩余使用次数: <span className="font-semibold">{currentRemaining === -1 ? '无限制' : currentRemaining}</span>
+            剩余使用次数: <span className="font-semibold">{isAdminSession || currentRemaining === -1 ? '无限制' : currentRemaining}</span>
           </p>
         </div>
       )}
@@ -349,7 +372,7 @@ export default function ImageGenerator({
               loading ||
               !description.trim() ||
               (isLoggedIn && currentRemaining === 0 && remaining !== -1) ||
-              (!allowAnonymous && !isLoggedIn)
+              (!allowAnonymous && !isLoggedIn && !isAdminSession)
             }
             className="flex-1 px-6 py-3.5 sm:py-4 min-h-[52px] sm:min-h-[56px] bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg hover:from-orange-600 hover:to-red-600 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed transition-all font-medium flex items-center justify-center gap-2 shadow-lg text-sm sm:text-base touch-manipulation whitespace-nowrap"
           >
@@ -388,7 +411,7 @@ export default function ImageGenerator({
         </div>
 
         <p className="text-xs text-center text-gray-500 leading-5 min-h-[20px]">
-          {!isLoggedIn && !allowAnonymous ? '提示：生成图片需要先登录' : ''}
+          {!isLoggedIn && !allowAnonymous && !isAdminSession ? '提示：生成图片需要先登录' : ''}
         </p>
       </div>
 

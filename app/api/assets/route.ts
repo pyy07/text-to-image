@@ -7,15 +7,22 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const userOnly = searchParams.get('userOnly') === 'true'
     const publicOnly = searchParams.get('publicOnly') === 'true' // 案例页面：只显示公开的（无userId）
+    const trialOnly = searchParams.get('trialOnly') === 'true' // 试用案例：只显示 type=trial
+    const excludeTrial = searchParams.get('excludeTrial') === 'true' // 图片案例：排除试用素材
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '100')
     const skip = (page - 1) * limit
 
     let where: any = {}
     
-    if (publicOnly) {
-      // 案例页面：只显示公开的（userId为null）
+    if (trialOnly) {
+      where = { type: 'trial' }
+    } else if (publicOnly) {
+      // 案例页面：只显示公开的（userId为null）；图片案例可排除试用
       where = { userId: null }
+      if (excludeTrial) {
+        where.type = { not: 'trial' }
+      }
     } else if (userOnly && userId) {
       // 我的素材页面：只显示当前用户的图片，并且必须有userId
       where = { userId }

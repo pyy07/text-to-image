@@ -97,10 +97,10 @@ export async function POST(request: NextRequest) {
         prefix: blobPrefix,
       })
 
-      // 创建 Asset
+      // 创建 Asset（模型试用编辑结果用 type=trial）
       const assetData: any = {
         description: task.description,
-        type: 'image',
+        type: task.source === 'trial' ? 'trial' : 'image',
         operation: task.type,
         imageUrl,
         mimeType,

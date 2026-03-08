@@ -79,10 +79,32 @@ export function isProviderAllowed(provider: AIProvider): boolean {
 }
 
 /**
- * 验证模型是否在允许列表中
+ * 先进/试用模型列表（UniAPI 等，仅管理员/指定用户可用）
+ * 优先使用 TRIAL_MODELS_IMAGE（模型试用-图像）；未配置时用 ADVANCED_OPENAI_MODELS
+ */
+export function getAdvancedModels(provider: AIProvider): string[] {
+  if (provider !== 'openai') return []
+  const trial = process.env.TRIAL_MODELS_IMAGE
+  if (trial) {
+    const list = trial.split(',').map((m) => m.trim()).filter(Boolean)
+    if (list.length > 0) return list
+  }
+  const env = process.env.ADVANCED_OPENAI_MODELS
+  if (!env) return []
+  return env.split(',').map((m) => m.trim()).filter(Boolean)
+}
+
+export function isAdvancedModel(provider: AIProvider, model: string): boolean {
+  return getAdvancedModels(provider).includes(model)
+}
+
+/**
+ * 验证模型是否在允许列表中（含普通模型与先进模型）
  */
 export function isModelAllowed(provider: AIProvider, model: string): boolean {
   const allowedModels = getConfiguredModels(provider)
-  return allowedModels.length === 0 || allowedModels.includes(model)
+  const advancedModels = getAdvancedModels(provider)
+  const allAllowed = [...allowedModels, ...advancedModels]
+  return allAllowed.length === 0 || allAllowed.includes(model)
 }
 

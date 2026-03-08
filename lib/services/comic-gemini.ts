@@ -2,7 +2,7 @@
  * 文生漫：使用 @google/genai SDK 多图+文生图
  * 将公众号文章配图下载为 base64，与正文一起作为多模态输入，调用 generateContent 生成九宫格漫画。
  * 通过 httpOptions.baseUrl 支持 UniAPI（如 https://api.uniapi.io/gemini）或 Google 官方。
- * 需单独配置 COMIC_GEMINI_BASE_URL、COMIC_GEMINI_API_KEY。
+ * 文生漫使用 UniAPI 配置（OPENAI_UNIAPI_BASE_URL 推导 .../gemini + OPENAI_UNIAPI_API_KEY）。
  */
 
 import { GoogleGenAI } from '@google/genai'
@@ -126,7 +126,7 @@ export async function generateComicWithGemini(
   const finishReason = (c0 as { finishReason?: string } | undefined)?.finishReason
   if (finishReason === 'NO_IMAGE' || (finishReason && !response.data && !(c0?.content?.parts?.length))) {
     throw new Error(
-      '当前模型未返回图片（finishReason: NO_IMAGE）。请确认 COMIC_GEMINI_MODEL 使用支持出图的模型（如 gemini-2.0-flash-preview-image 或代理文档中标注可出图的模型），并确认代理已开启图片生成能力。'
+      '当前模型未返回图片（finishReason: NO_IMAGE）。请确认 COMIC_GEMINI_MODEL（或默认模型）使用支持出图的模型（如 gemini-2.0-flash-exp），并确认 UniAPI 已开启图片生成能力。'
     )
   }
   const firstPart = c0?.content?.parts?.[0]

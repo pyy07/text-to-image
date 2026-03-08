@@ -4,30 +4,32 @@ import { editImage, getAIProvider, getDefaultProvider } from '@/lib/ai/factory'
 import { isModelAllowed, isProviderAllowed } from '@/lib/ai/config'
 import { prisma } from '@/lib/prisma'
 import { checkUserUsageLimit, incrementUserUsage } from '@/lib/auth'
+import { getAdminFromRequest } from '@/lib/admin-auth'
 import { uploadImageUrlToVercelBlob } from '@/lib/storage/vercel-blob'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { description, userId, provider, model, size, inputImageUrl, inputImageUrls, sourceAssetId, sourceAssetIds } = body
+    const { description, userId: rawUserId, provider, model, size, inputImageUrl, inputImageUrls, sourceAssetId, sourceAssetIds, fromTrial } = body
+    // 模型试用页的编辑结果保存为公开案例（任务不关联用户）
+    const userId = fromTrial ? null : (rawUserId ?? null)
 
     if (!description || typeof description !== 'string') {
       return NextResponse.json({ error: '编辑指令不能为空' }, { status: 400 })
     }
 
-    // 匿名开关沿用 /api/generate 逻辑
+    const isAdmin = !!(await getAdminFromRequest(request))
+
     const allowAnonymous =
       process.env.ALLOW_ANONYMOUS === 'true' ||
       (process.env.NODE_ENV === 'development' && process.env.ALLOW_ANONYMOUS !== 'false')
 
-    // 如果不允许匿名访问，要求登录并检查使用次数
-    if (!allowAnonymous) {
-      if (!userId) {
+    // 管理员不受登录与次数限制
+    if (!isAdmin && !allowAnonymous) {
+      if (!rawUserId) {
         return NextResponse.json({ error: '请先登录' }, { status: 401 })
       }
-      
-      // 检查用户使用次数限制
-      const usageCheck = await checkUserUsageLimit(userId)
+      const usageCheck = await checkUserUsageLimit(rawUserId)
       if (!usageCheck.allowed) {
         return NextResponse.json(
           { error: '使用次数已用完', remaining: usageCheck.remaining },
@@ -35,7 +37,6 @@ export async function POST(request: NextRequest) {
         )
       }
     }
-    // 如果允许匿名访问，无论是否登录都不检查使用次数
 
     // 支持多图输入
     let resolvedInputUrls: string[] = []
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
         const assetWithImage = asset as any
         if (!assetWithImage.imageUrl) continue
         // 简单权限检查
-        if (userId && asset.userId && asset.userId !== userId) {
+        if (rawUserId && asset.userId && asset.userId !== rawUserId) {
           continue // 跳过无权限的素材
         }
         resolvedInputUrls.push(assetWithImage.imageUrl)
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest) {
         const assetWithImage = asset as any
         if (assetWithImage.imageUrl) {
           // 简单权限：若素材归属到某个用户，则仅允许本人编辑；匿名素材允许所有人编辑
-          if (userId && asset.userId && asset.userId !== userId) {
+          if (rawUserId && asset.userId && asset.userId !== rawUserId) {
             return NextResponse.json({ error: '无权限编辑该素材' }, { status: 403 })
           }
           resolvedInputUrls.push(assetWithImage.imageUrl)
@@ -133,6 +134,7 @@ export async function POST(request: NextRequest) {
         provider: actualProvider,
         model: actualModel,
         size: typeof size === 'string' ? size : null,
+        source: fromTrial ? 'trial' : null,
         expiresAt,
       },
     })

@@ -65,7 +65,6 @@ export default function Navigation({ user: propUser, onLogout }: NavigationProps
             if (data.id) {
               const userInfo = { nickname: data.nickname, avatar: data.avatar }
               setUser(userInfo)
-              // 缓存用户信息
               sessionStorage.setItem('nav_user', JSON.stringify(userInfo))
               sessionStorage.setItem('nav_user_id', payload.userId)
             } else {
@@ -154,6 +153,7 @@ export default function Navigation({ user: propUser, onLogout }: NavigationProps
     { href: '/', label: '首页' },
     { href: '/gallery', label: '案例' },
     { href: '/assets', label: '我的素材' },
+    { href: '/trial', label: '模型试用' },
   ]
 
   return (

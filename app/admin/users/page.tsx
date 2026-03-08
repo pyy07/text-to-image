@@ -9,6 +9,7 @@ interface User {
   usageCount: number
   maxUsage: number
   isPermanent: boolean
+  isVip: boolean
   createdAt: string
 }
 
@@ -49,6 +50,7 @@ export default function AdminUsersPage() {
   const patchUser = async (payload: {
     userId: string
     isPermanent?: boolean
+    isVip?: boolean
     resetUsage?: boolean
     increaseUsage?: number
   }) => {
@@ -76,6 +78,10 @@ export default function AdminUsersPage() {
 
   const handleSetPermanent = (userId: string, isPermanent: boolean) => {
     patchUser({ userId, isPermanent })
+  }
+
+  const handleSetVip = (userId: string, isVip: boolean) => {
+    patchUser({ userId, isVip })
   }
 
   const handleResetUsage = (userId: string) => {
@@ -109,20 +115,26 @@ export default function AdminUsersPage() {
           <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
+                <th className="p-3 text-left font-medium text-slate-700">用户 ID</th>
                 <th className="p-3 text-left font-medium text-slate-700">昵称</th>
                 <th className="p-3 text-left font-medium text-slate-700">使用次数</th>
                 <th className="p-3 text-left font-medium text-slate-700">最大次数</th>
                 <th className="p-3 text-left font-medium text-slate-700">永久用户</th>
+                <th className="p-3 text-left font-medium text-slate-700">VIP</th>
                 <th className="p-3 text-left font-medium text-slate-700">操作</th>
               </tr>
             </thead>
             <tbody>
               {users.map((user) => (
                 <tr key={user.id} className="border-b border-slate-100">
+                  <td className="p-3 text-slate-600 font-mono text-xs" title={user.id}>
+                    {user.id.length > 12 ? `${user.id.slice(0, 8)}…` : user.id}
+                  </td>
                   <td className="p-3 text-slate-800">{user.nickname || '未设置'}</td>
                   <td className="p-3 text-slate-800">{user.usageCount}</td>
                   <td className="p-3 text-slate-800">{user.maxUsage}</td>
                   <td className="p-3 text-slate-800">{user.isPermanent ? '是' : '否'}</td>
+                  <td className="p-3 text-slate-800">{user.isVip ? '是' : '否'}</td>
                   <td className="p-3">
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -132,6 +144,14 @@ export default function AdminUsersPage() {
                         className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700 disabled:opacity-50"
                       >
                         {user.isPermanent ? '取消永久' : '设为永久'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetVip(user.id, !user.isVip)}
+                        disabled={acting === user.id}
+                        className="rounded bg-amber-600 px-2 py-1 text-xs text-white hover:bg-amber-700 disabled:opacity-50"
+                      >
+                        {user.isVip ? '取消VIP' : '设为VIP'}
                       </button>
                       <button
                         type="button"

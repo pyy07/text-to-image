@@ -1,11 +1,17 @@
 import OpenAI from 'openai'
 import type { AIProviderInterface } from '../types'
+import { isAdvancedModel } from '../config'
 
 export class OpenAIProvider implements AIProviderInterface {
   readonly name = 'openai' as const
   private client: OpenAI | null = null
   private apiKey: string | undefined
   private baseURL: string | undefined
+
+  /** 试用/先进模型走 UniAPI（OPENAI_UNIAPI_BASE_URL），不走 ModelScope */
+  private isTrialModel(model: string): boolean {
+    return isAdvancedModel('openai', model)
+  }
 
   private isModelScopeInference(): boolean {
     const base = (this.baseURL || '').toLowerCase()
@@ -179,8 +185,18 @@ export class OpenAIProvider implements AIProviderInterface {
     const size = options?.size || process.env.OPENAI_IMAGE_SIZE || '1024x1024'
 
     try {
-      // ModelScope API-Inference 的 images/generations 是异步任务模式，OpenAI SDK 无法直接兼容，需走自定义流程
-      if (this.isModelScopeInference()) {
+      // 试用/先进模型走 UniAPI（若配置了 OPENAI_UNIAPI_BASE_URL），不走 ModelScope
+      const useUniApi = this.isTrialModel(modelName) && process.env.OPENAI_UNIAPI_BASE_URL?.trim()
+      const uniApiKey = process.env.OPENAI_UNIAPI_API_KEY?.trim() || this.apiKey
+      const client = useUniApi
+        ? new OpenAI({
+            apiKey: uniApiKey,
+            baseURL: process.env.OPENAI_UNIAPI_BASE_URL!.trim(),
+          })
+        : this.client!
+
+      // ModelScope API-Inference 的 images/generations 是异步任务模式，OpenAI SDK 无法直接兼容，需走自定义流程（仅非试用模型）
+      if (!useUniApi && this.isModelScopeInference()) {
         return await this.generateImageViaModelScopeInference({
           model: modelName,
           prompt: description,
@@ -188,9 +204,9 @@ export class OpenAIProvider implements AIProviderInterface {
         })
       }
 
-      // OpenAI SDK 会根据 baseURL 走兼容接口
+      // OpenAI SDK / UniAPI 兼容接口
       // OpenAI SDK 对 size 做了枚举类型限制；兼容服务可能支持更多尺寸，故在此放宽为 any
-      const response = await this.client.images.generate({
+      const response = await client.images.generate({
         model: modelName,
         prompt: description,
         size: size as any,
@@ -305,7 +321,13 @@ export class OpenAIProvider implements AIProviderInterface {
       ? options.inputImageUrls
       : [inputImageUrl]
 
-    // 首期：仅支持 ModelScope API-Inference 的整体改图（Qwen-Image-Edit-2509）
+    // 试用/先进模型走 UniAPI（若配置了 OPENAI_UNIAPI_BASE_URL）
+    const useUniApi = this.isTrialModel(modelName) && process.env.OPENAI_UNIAPI_BASE_URL?.trim()
+    if (useUniApi) {
+      return await this.editImageViaUniApi(modelName, prompt, size, imageUrls)
+    }
+
+    // ModelScope API-Inference 的整体改图（Qwen-Image-Edit-2509）
     if (this.isModelScopeInference()) {
       return await this.generateImageViaModelScopeInference({
         model: modelName,
@@ -315,7 +337,47 @@ export class OpenAIProvider implements AIProviderInterface {
       })
     }
 
-    throw new Error('当前 Provider 暂未实现图片编辑/以图改图（仅支持 ModelScope API-Inference）')
+    throw new Error('当前 Provider 暂未实现图片编辑/以图改图（仅支持 ModelScope API-Inference 或 UniAPI 试用模型）')
+  }
+
+  /** 试用模型编辑：调用 UniAPI 兼容的 images/generations（支持 image_url） */
+  private async editImageViaUniApi(
+    model: string,
+    prompt: string,
+    size: string,
+    imageUrls: string[]
+  ): Promise<{ imageUrl: string; mimeType?: string }> {
+    const base = process.env.OPENAI_UNIAPI_BASE_URL!.trim().replace(/\/$/, '')
+    const uniApiKey = process.env.OPENAI_UNIAPI_API_KEY?.trim() || this.apiKey
+    const url = `${base}/images/generations`
+    const body: Record<string, unknown> = {
+      model,
+      prompt,
+      size,
+      response_format: 'url',
+    }
+    if (imageUrls.length > 0) body.image_url = imageUrls.length === 1 ? imageUrls[0] : imageUrls
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${uniApiKey}`,
+      },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`UniAPI 编辑请求失败（${res.status}）：${text || 'unknown'}`)
+    }
+    const data: any = await res.json()
+    const imageUrl: string | undefined =
+      data?.data?.[0]?.url ?? data?.data?.[0]?.image_url ?? data?.images?.[0]?.url ?? data?.output?.[0]?.url ?? data?.url
+    if (!imageUrl) {
+      const keys = data && typeof data === 'object' ? Object.keys(data).join(',') : ''
+      throw new Error(`UniAPI 编辑返回缺少图片 URL；response keys=${keys}`)
+    }
+    return { imageUrl, mimeType: 'image/png' }
   }
 }
 

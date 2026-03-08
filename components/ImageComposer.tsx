@@ -352,14 +352,14 @@ export default function ImageComposer({
             placeholder="描述你想如何合成这些图片。例如：'将两张图片融合，第一张作为背景，第二张叠加在前景，营造梦幻效果。'"
             className="w-full p-3 sm:p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50 resize-none text-sm sm:text-base"
             rows={5}
-            maxLength={500}
+            maxLength={2000}
             disabled={
               loading ||
               (!allowAnonymous && !isLoggedIn && !description.trim()) ||
               (isLoggedIn && currentRemaining === 0 && remaining !== -1)
             }
           />
-          <div className="absolute bottom-2 right-2 text-xs text-gray-400">{description.length}/500</div>
+          <div className="absolute bottom-2 right-2 text-xs text-gray-400">{description.length}/2000</div>
         </div>
       </div>
 

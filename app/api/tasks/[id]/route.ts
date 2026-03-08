@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getAdminFromRequest } from '@/lib/admin-auth'
 
 /**
  * 查询单个任务状态
@@ -11,6 +12,7 @@ export async function GET(
   try {
     const taskId = params.id
     const userId = request.headers.get('x-user-id')
+    const isAdmin = !!(await getAdminFromRequest(request))
 
     const task = await prisma.task.findUnique({
       where: { id: taskId },
@@ -20,8 +22,8 @@ export async function GET(
       return NextResponse.json({ error: '任务不存在' }, { status: 404 })
     }
 
-    // 权限检查：只有任务创建者可以查看
-    if (task.userId && userId !== task.userId) {
+    // 管理员可查看任意任务；否则仅任务创建者可查看
+    if (!isAdmin && task.userId && userId !== task.userId) {
       return NextResponse.json({ error: '无权限查看该任务' }, { status: 403 })
     }
 

@@ -3,7 +3,9 @@ import { generateImage, getDefaultProvider, getAIProvider } from '@/lib/ai/facto
 import { checkUserUsageLimit, incrementUserUsage } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import type { AIProvider } from '@/lib/ai/types'
-import { isProviderAllowed, isModelAllowed } from '@/lib/ai/config'
+import { isProviderAllowed, isModelAllowed, isAdvancedModel } from '@/lib/ai/config'
+import { canUseAdvancedModels } from '@/lib/advanced-models-auth'
+import { getAdminFromRequest } from '@/lib/admin-auth'
 import { uploadImageUrlToVercelBlob } from '@/lib/storage/vercel-blob'
 
 export async function POST(request: NextRequest) {
@@ -11,11 +13,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { 
       description, 
-      userId, 
+      userId: rawUserId, 
       provider, 
       model, 
-      size
+      size,
+      fromTrial,
     } = body
+    // 模型试用页的素材保存为公开案例（不关联用户）；登录与次数校验仍用 rawUserId
+    const userIdForAsset = fromTrial ? null : (rawUserId ?? null)
 
     if (!description || typeof description !== 'string') {
       return NextResponse.json(
@@ -24,6 +29,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const isAdmin = !!(await getAdminFromRequest(request))
+
     // 检查是否允许匿名访问（本地测试开关）
     // 方式1: 显式设置 ALLOW_ANONYMOUS=true
     // 方式2: 在开发环境（NODE_ENV=development）下默认允许
@@ -31,17 +38,16 @@ export async function POST(request: NextRequest) {
       process.env.ALLOW_ANONYMOUS === 'true' || 
       (process.env.NODE_ENV === 'development' && process.env.ALLOW_ANONYMOUS !== 'false')
 
-    // 如果不允许匿名访问，要求登录并检查使用次数
-    if (!allowAnonymous) {
-      if (!userId) {
+    // 管理员不受登录与次数限制；否则按匿名开关校验
+    if (!isAdmin && !allowAnonymous) {
+      if (!rawUserId) {
         return NextResponse.json(
           { error: '请先登录' },
           { status: 401 }
         )
       }
       
-      // 检查用户使用次数限制
-      const usageCheck = await checkUserUsageLimit(userId)
+      const usageCheck = await checkUserUsageLimit(rawUserId)
       if (!usageCheck.allowed) {
         return NextResponse.json(
           {
@@ -52,7 +58,6 @@ export async function POST(request: NextRequest) {
         )
       }
     }
-    // 如果允许匿名访问，无论是否登录都不检查使用次数
 
     // 验证 provider 和 model 是否在允许列表中
     if (provider) {
@@ -69,6 +74,16 @@ export async function POST(request: NextRequest) {
           { error: `模型 ${model} 未在配置文件中启用` },
           { status: 400 }
         )
+      }
+      // 先进模型需单独权限
+      if (model && isAdvancedModel(providerName, model)) {
+        const allowed = await canUseAdvancedModels(request, rawUserId)
+        if (!allowed) {
+          return NextResponse.json(
+            { error: '功能未启用，请联系管理员，微信号为LukePanYY' },
+            { status: 403 }
+          )
+        }
       }
     }
 
@@ -116,48 +131,44 @@ export async function POST(request: NextRequest) {
     // 但为了兼容旧版本（如生产环境的 5.19.0），我们使用条件判断
     const assetData: any = {
       description,
-      type: 'image',
+      type: fromTrial ? 'trial' : 'image',
       imageUrl,
       mimeType,
       provider: actualProvider,
       model: actualModel,
     }
     
-    // 如果已登录，使用关系连接用户（Prisma 5.22.0+ 要求）
-    // 对于旧版本，也可以直接设置 userId，但新版本会报错
-    if (userId) {
+    // 如果已登录且非试用页，使用关系连接用户（Prisma 5.22.0+ 要求）
+    // 模型试用页（fromTrial）保存为公开案例，不关联用户
+    if (userIdForAsset) {
       assetData.user = {
-        connect: { id: userId }
+        connect: { id: userIdForAsset }
       }
     }
-    // 注意：当 userId 为 null 时，不设置 user 字段，让 Prisma 自动处理
     
     const asset = await prisma.asset.create({
       data: assetData,
     })
 
-    // 如果不允许匿名访问且已登录，增加使用次数
-    if (!allowAnonymous && userId) {
-      await incrementUserUsage(userId)
-      const updatedUsageCheck = await checkUserUsageLimit(userId)
-
+    // 管理员或匿名模式或试用页：不扣次数，返回无限制；否则已登录用户扣次数
+    if (isAdmin || allowAnonymous || !rawUserId) {
       return NextResponse.json({
         success: true,
         imageUrl,
         mimeType,
         assetId: asset.id,
-        remaining: updatedUsageCheck.remaining,
-      })
-    } else {
-      // 允许匿名访问时，无论是否登录都不增加使用次数，返回无限制
-      return NextResponse.json({
-        success: true,
-        imageUrl,
-        mimeType,
-        assetId: asset.id,
-        remaining: -1, // 允许匿名访问时显示无限制
+        remaining: -1,
       })
     }
+    await incrementUserUsage(rawUserId)
+    const updatedUsageCheck = await checkUserUsageLimit(rawUserId)
+    return NextResponse.json({
+      success: true,
+      imageUrl,
+      mimeType,
+      assetId: asset.id,
+      remaining: updatedUsageCheck.remaining,
+    })
   } catch (error: any) {
     // 只在开发环境输出详细错误日志
     if (process.env.NODE_ENV === 'development') {
