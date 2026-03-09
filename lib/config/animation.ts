@@ -1,15 +1,15 @@
 /**
- * 文生漫功能配置
- * - 开关：COMIC_ENABLED=true 时开启
- * - 使用 UniAPI 配置：OPENAI_UNIAPI_BASE_URL、OPENAI_UNIAPI_API_KEY（与模型试用共用，无需单独 COMIC_*）
+ * 文生动画功能配置
+ * - 开关：ANIMATION_ENABLED=true 时开启
+ * - 使用 UniAPI 配置：OPENAI_UNIAPI_BASE_URL、OPENAI_UNIAPI_API_KEY（与文生漫/模型试用共用）
  * - 从 OPENAI_UNIAPI_BASE_URL 推导 Gemini 地址，如 https://api.uniapi.io/v1 -> https://api.uniapi.io/gemini
  */
 
-export function isComicEnabled(): boolean {
-  return process.env.COMIC_ENABLED === 'true' || process.env.COMIC_ENABLED === '1'
+export function isAnimationEnabled(): boolean {
+  return process.env.ANIMATION_ENABLED === 'true' || process.env.ANIMATION_ENABLED === '1'
 }
 
-export interface ComicGeminiConfig {
+export interface AnimationGeminiConfig {
   baseURL: string
   apiKey: string
   model: string
@@ -25,16 +25,16 @@ function getUniApiGeminiBaseUrl(): string | null {
 }
 
 /**
- * 文生漫使用的 Gemini 配置：优先用 UniAPI 配置（OPENAI_UNIAPI_BASE_URL + OPENAI_UNIAPI_API_KEY）
+ * 文生动画使用的 Gemini 配置：复用 UniAPI（OPENAI_UNIAPI_BASE_URL + OPENAI_UNIAPI_API_KEY）
  * 未配置或开关关闭时返回 null
  */
-export function getComicGeminiConfig(): ComicGeminiConfig | null {
-  if (!isComicEnabled()) return null
+export function getAnimationGeminiConfig(): AnimationGeminiConfig | null {
+  if (!isAnimationEnabled()) return null
 
   const baseURL = getUniApiGeminiBaseUrl()
   const apiKey = (process.env.OPENAI_UNIAPI_API_KEY || process.env.OPENAI_API_KEY)?.trim()
   if (!baseURL || !apiKey) return null
 
-  const model = process.env.COMIC_GEMINI_MODEL?.trim() || 'gemini-2.0-flash-exp'
+  const model = process.env.ANIMATION_GEMINI_MODEL?.trim() || 'gemini-3-flash-preview'
   return { baseURL, apiKey, model }
 }

@@ -6,6 +6,7 @@ import ImageGenerator from '@/components/ImageGenerator'
 import ImageComposer from '@/components/ImageComposer'
 import ImagePreview from '@/components/ImagePreview'
 import ArticleToComic from '@/components/ArticleToComic'
+import TextToAnimation from '@/components/TextToAnimation'
 import Navigation from '@/components/Navigation'
 import TaskList from '@/components/TaskList'
 
@@ -25,10 +26,11 @@ function HomeContent() {
   const [loading, setLoading] = useState(true)
   const [allowAnonymous, setAllowAnonymous] = useState(false)
   const [comicEnabled, setComicEnabled] = useState(false)
+  const [animationEnabled, setAnimationEnabled] = useState(false)
   const [imageUrl, setImageUrl] = useState<string | null>(null) // 输出图片
   const [imageLoading, setImageLoading] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
-  const [activeTab, setActiveTab] = useState<'generate' | 'compose' | 'comic'>('generate')
+  const [activeTab, setActiveTab] = useState<'generate' | 'compose' | 'comic' | 'animation'>('generate')
   // 输入图片状态
   const [inputImageUrl, setInputImageUrl] = useState<string | null>(null) // 单张输入图片（修改模式）
   // 使用 useRef 保存 inputImageUrls，避免组件重新挂载时丢失
@@ -56,14 +58,16 @@ function HomeContent() {
         setAllowAnonymous(false)
       })
 
-    // 文生漫功能开关（关闭时入口仍展示，提交时提示联系管理员）
+    // 文生漫、文生动画功能开关（关闭时入口仍展示，提交时提示）
     fetch('/api/features')
       .then((res) => res.json())
       .then((data) => {
         setComicEnabled(data.comicEnabled === true)
+        setAnimationEnabled(data.animationEnabled === true)
       })
       .catch(() => {
         setComicEnabled(false)
+        setAnimationEnabled(false)
       })
 
     // 检查 URL 中是否有 token（登录回调）
@@ -162,6 +166,9 @@ function HomeContent() {
     } else if (tab === 'comic') {
       setActiveTab('comic')
       window.history.replaceState({}, '', window.location.pathname)
+    } else if (tab === 'animation') {
+      setActiveTab('animation')
+      window.history.replaceState({}, '', window.location.pathname)
     }
   }, [searchParams])
 
@@ -249,18 +256,19 @@ function HomeContent() {
     setPreviewMode('compose')
   }
 
-  const handleTabChange = (tab: 'generate' | 'compose' | 'comic') => {
+  const handleTabChange = (tab: 'generate' | 'compose' | 'comic' | 'animation') => {
     setActiveTab(tab)
     if (tab === 'generate') {
-      // 切换到文生图模式，清除合成相关的输入图片
       setInputImageUrls([])
       setPreviewMode('generate')
     } else if (tab === 'compose') {
-      // 切换到合成模式，保持已有的图片不变
       setPreviewMode('compose')
       setInputImageUrl(null)
     } else if (tab === 'comic') {
-      // 切换到文生漫模式
+      setPreviewMode('generate')
+      setInputImageUrls([])
+      setInputImageUrl(null)
+    } else if (tab === 'animation') {
       setPreviewMode('generate')
       setInputImageUrls([])
       setInputImageUrl(null)
@@ -304,7 +312,7 @@ function HomeContent() {
                       inputImageUrl={inputImageUrl}
                       inputImageUrls={inputImageUrls.length > 0 ? inputImageUrls : undefined}
                       loading={imageLoading} 
-                      mode={activeTab === 'comic' ? 'comic' : previewMode}
+                      mode={activeTab === 'comic' ? 'comic' : activeTab === 'animation' ? 'animation' : previewMode}
                       onImageUpload={activeTab === 'generate' ? handleImageUpload : undefined}
                       uploading={uploadingImage}
                     />
@@ -349,6 +357,16 @@ function HomeContent() {
                       >
                         文生漫
                       </button>
+                      <button
+                        onClick={() => handleTabChange('animation')}
+                        className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+                          activeTab === 'animation'
+                            ? 'text-orange-600 border-b-2 border-orange-600'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        文生动
+                      </button>
                     </div>
 
                     {/* 根据标签页显示不同组件 */}
@@ -381,6 +399,20 @@ function HomeContent() {
                         onLoadingChange={(loading) => setImageLoading(loading)}
                         onInputImagesChange={handleInputImagesChange}
                         initialImageUrls={inputImageUrls}
+                      />
+                    ) : activeTab === 'animation' ? (
+                      <TextToAnimation
+                        userId={user?.id}
+                        remaining={user?.remaining ?? 0}
+                        isLoggedIn={!!user}
+                        allowAnonymous={allowAnonymous}
+                        animationEnabled={animationEnabled}
+                        onLoginRequest={handleWechatLogin}
+                        onImageGenerated={(url) => {
+                          setImageUrl(url || null)
+                          setImageLoading(false)
+                        }}
+                        onLoadingChange={(loading) => setImageLoading(loading)}
                       />
                     ) : (
                       <ArticleToComic

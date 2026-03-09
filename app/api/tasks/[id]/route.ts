@@ -4,13 +4,14 @@ import { getAdminFromRequest } from '@/lib/admin-auth'
 
 /**
  * 查询单个任务状态
+ * 兼容 Next.js 15 params Promise
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } | Promise<{ id: string }> }
 ) {
   try {
-    const taskId = params.id
+    const { id: taskId } = await Promise.resolve(params)
     const userId = request.headers.get('x-user-id')
     const isAdmin = !!(await getAdminFromRequest(request))
 

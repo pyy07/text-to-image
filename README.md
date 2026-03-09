@@ -14,6 +14,7 @@
 - 💾 素材自动保存和管理
 - 📱 响应式设计
 - 📖 **文生漫**（可选）：根据脚本生成漫画分镜，使用 UniAPI 的 Gemini 端点
+- 🎬 **文生动画**（可选）：根据描述生成 SVG 或 H5 动画，使用 UniAPI Gemini（默认 `gemini-3-flash-preview`），结构化提示词
 
 ## 技术栈
 
@@ -61,6 +62,10 @@ cp env.example .env
 
 **文生漫（可选）：**
 - `COMIC_ENABLED`: 设为 `true` 时启用，使用 UniAPI 的 Gemini 端点（从 `OPENAI_UNIAPI_BASE_URL` 自动推导）
+
+**文生动画（可选）：**
+- `ANIMATION_ENABLED`: 设为 `true` 时启用文生动画（页面 `/animation`）
+- `ANIMATION_GEMINI_MODEL`: 模型名，默认 `gemini-3-flash-preview`；需同时配置 `OPENAI_UNIAPI_BASE_URL` 与 `OPENAI_UNIAPI_API_KEY`
 
 **其他可选：**
 - `AI_PROVIDERS` / `AI_PROVIDER`: 多 Provider 时使用（如 `gemini`, `openai`）

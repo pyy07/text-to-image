@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Navigation from '@/components/Navigation'
+import AnimationIframe from '@/components/AnimationIframe'
 
 interface Asset {
   id: string
@@ -32,14 +33,28 @@ interface Comic {
   }
 }
 
+interface Animation {
+  id: string
+  userDescription: string
+  format: string
+  resultImageUrl: string | null
+  createdAt: string
+  user?: {
+    id: string
+    nickname?: string
+    avatar?: string
+  }
+}
+
 export default function GalleryPage() {
   const [assets, setAssets] = useState<Asset[]>([])
   const [trialAssets, setTrialAssets] = useState<Asset[]>([])
   const [comics, setComics] = useState<Comic[]>([])
+  const [animations, setAnimations] = useState<Animation[]>([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
-  const [activeTab, setActiveTab] = useState<'images' | 'trial' | 'comics'>('comics')
+  const [activeTab, setActiveTab] = useState<'images' | 'trial' | 'comics' | 'animations'>('comics')
   const [allowDelete, setAllowDelete] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const pageSize = 12
@@ -56,6 +71,8 @@ export default function GalleryPage() {
       fetchAssets()
     } else if (activeTab === 'trial') {
       fetchTrialAssets()
+    } else if (activeTab === 'animations') {
+      fetchAnimations()
     } else {
       fetchComics()
     }
@@ -126,18 +143,40 @@ export default function GalleryPage() {
     }
   }
 
+  const fetchAnimations = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch(`/api/animations?page=${page}&limit=${pageSize}`)
+
+      if (response.ok) {
+        const data = await response.json()
+        if (page === 1) {
+          setAnimations(data.animations || [])
+        } else {
+          setAnimations((prev) => [...prev, ...(data.animations || [])])
+        }
+        setHasMore((data.animations || []).length === pageSize)
+      }
+    } catch (error) {
+      console.error('获取动画案例列表失败:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const loadMore = () => {
     if (!loading && hasMore) {
       setPage((prev) => prev + 1)
     }
   }
 
-  const handleTabChange = (tab: 'images' | 'trial' | 'comics') => {
+  const handleTabChange = (tab: 'images' | 'trial' | 'comics' | 'animations') => {
     setActiveTab(tab)
     setPage(1)
     setAssets([])
     setTrialAssets([])
     setComics([])
+    setAnimations([])
     setHasMore(true)
   }
 
@@ -180,6 +219,25 @@ export default function GalleryPage() {
     }
   }
 
+  const handleDeleteAnimation = async (animationId: string) => {
+    if (!allowDelete || deletingId) return
+    if (!confirm('确定要删除这条动画案例吗？')) return
+    setDeletingId(animationId)
+    try {
+      const res = await fetch(`/api/animation/${animationId}`, { method: 'DELETE' })
+      if (res.ok) {
+        setAnimations((prev) => prev.filter((a) => a.id !== animationId))
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert(data?.error || '删除失败')
+      }
+    } catch {
+      alert('删除失败，请稍后重试')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   return (
     <div className="h-screen overflow-hidden flex flex-col">
       <Navigation />
@@ -198,6 +256,16 @@ export default function GalleryPage() {
                 }`}
               >
                 漫画案例
+              </button>
+              <button
+                onClick={() => handleTabChange('animations')}
+                className={`flex-1 px-3 py-2 text-sm font-medium transition-colors ${
+                  activeTab === 'animations'
+                    ? 'text-orange-600 border-b-2 border-orange-600'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                动画案例
               </button>
               <button
                 onClick={() => handleTabChange('images')}
@@ -222,7 +290,7 @@ export default function GalleryPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto min-h-0">
-              {loading && (activeTab === 'images' ? assets.length === 0 : activeTab === 'trial' ? trialAssets.length === 0 : comics.length === 0) ? (
+              {loading && (activeTab === 'images' ? assets.length === 0 : activeTab === 'trial' ? trialAssets.length === 0 : activeTab === 'animations' ? animations.length === 0 : comics.length === 0) ? (
                 <div className="h-full flex items-center justify-center">
                   <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
@@ -252,6 +320,19 @@ export default function GalleryPage() {
                       className="mt-4 inline-block px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
                     >
                       去生成第一篇漫画
+                    </Link>
+                  </div>
+                </div>
+              ) : activeTab === 'animations' && animations.length === 0 ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-center py-10">
+                    <div className="text-6xl mb-4">🎬</div>
+                    <p className="text-gray-600 text-lg">暂无动画案例</p>
+                    <Link
+                      href="/?tab=animation"
+                      className="mt-4 inline-block px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                    >
+                      去生成第一个动画
                     </Link>
                   </div>
                 </div>
@@ -451,6 +532,86 @@ export default function GalleryPage() {
                                   className="block w-full px-3 py-2 text-xs sm:text-sm text-center bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white rounded-lg transition-colors"
                                 >
                                   {deletingId === asset.id ? '删除中...' : '删除'}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 动画案例 */}
+                  {activeTab === 'animations' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+                      {animations.map((anim) => (
+                        <div
+                          key={anim.id}
+                          className="group bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-200 flex flex-col"
+                        >
+                          <a
+                            href={anim.resultImageUrl || '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block flex-1 min-h-0 flex flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 rounded-lg"
+                          >
+                            <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center p-3 overflow-hidden relative">
+                              <span className="absolute left-0 top-0 z-10 px-2.5 py-1 text-[11px] font-bold tracking-wide text-white rounded-br-lg shadow-md bg-teal-600">
+                                {anim.format === 'h5' ? 'H5' : 'SVG'}
+                              </span>
+                              <div className="w-full h-full rounded-md overflow-hidden bg-white/80 backdrop-blur-sm flex items-center justify-center">
+                                {anim.resultImageUrl ? (
+                                  <AnimationIframe
+                                    url={anim.resultImageUrl}
+                                    title={anim.userDescription}
+                                    className="w-full h-full border-0 pointer-events-none"
+                                  />
+                                ) : (
+                                  <div className="text-gray-500 text-sm">无预览</div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="p-3 sm:p-4 flex-1 flex flex-col">
+                              <p className="text-xs sm:text-sm text-gray-700 line-clamp-2 mb-2 group-hover:text-teal-600 transition-colors flex-shrink-0">
+                                {anim.userDescription || '文生动'}
+                              </p>
+                              <div className="text-xs text-gray-500 space-y-1 mt-auto">
+                                <div className="flex items-center justify-between">
+                                  <span>
+                                    {new Date(anim.createdAt).toLocaleDateString('zh-CN')}
+                                  </span>
+                                  {anim.user?.nickname && (
+                                    <span className="text-gray-400">
+                                      @{anim.user.nickname}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </a>
+                          {(anim.resultImageUrl || allowDelete) && (
+                            <div className="px-3 sm:px-4 pb-3 sm:pb-4 flex-shrink-0 space-y-2">
+                              {anim.resultImageUrl && (
+                                <a
+                                  href={anim.resultImageUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block w-full px-3 py-2 text-xs sm:text-sm text-center bg-teal-500 hover:bg-teal-600 text-white rounded-lg transition-colors"
+                                >
+                                  打开动画
+                                </a>
+                              )}
+                              {allowDelete && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    handleDeleteAnimation(anim.id)
+                                  }}
+                                  disabled={deletingId === anim.id}
+                                  className="block w-full px-3 py-2 text-xs sm:text-sm text-center bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white rounded-lg transition-colors"
+                                >
+                                  {deletingId === anim.id ? '删除中...' : '删除'}
                                 </button>
                               )}
                             </div>

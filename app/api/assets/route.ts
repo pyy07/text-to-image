@@ -18,10 +18,12 @@ export async function GET(request: NextRequest) {
     if (trialOnly) {
       where = { type: 'trial' }
     } else if (publicOnly) {
-      // 案例页面：只显示公开的（userId为null）；图片案例可排除试用
+      // 案例页面：只显示公开的（userId为null）；图片案例排除试用与文生动画
       where = { userId: null }
       if (excludeTrial) {
         where.type = { not: 'trial' }
+        // 图片案例不展示文生动结果，动画案例由 /api/animations 单独拉取
+        where.operation = { not: 'animation' }
       }
     } else if (userOnly && userId) {
       // 我的素材页面：只显示当前用户的图片，并且必须有userId
