@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import Navigation from '@/components/Navigation'
 import AnimationIframe from '@/components/AnimationIframe'
@@ -57,7 +57,43 @@ export default function GalleryPage() {
   const [activeTab, setActiveTab] = useState<'images' | 'trial' | 'comics' | 'animations'>('comics')
   const [allowDelete, setAllowDelete] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [searchKeyword, setSearchKeyword] = useState('')
+  const [searchQuery, setSearchQuery] = useState('') // 防抖后用于请求
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prevSearchQueryRef = useRef(searchQuery)
   const pageSize = 12
+
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    const trimmed = searchKeyword.trim()
+    searchDebounceRef.current = setTimeout(() => {
+      setSearchQuery(trimmed)
+      searchDebounceRef.current = null
+    }, 400)
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    }
+  }, [searchKeyword])
+
+  useEffect(() => {
+    const searchJustChanged = prevSearchQueryRef.current !== searchQuery
+    if (searchJustChanged) {
+      prevSearchQueryRef.current = searchQuery
+      setPage(1)
+    }
+    const pageToFetch = searchJustChanged ? 1 : page
+    if (activeTab === 'images') {
+      fetchAssets(pageToFetch)
+    } else if (activeTab === 'trial') {
+      fetchTrialAssets(pageToFetch)
+    } else if (activeTab === 'animations') {
+      fetchAnimations(pageToFetch)
+    } else {
+      fetchComics(pageToFetch)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, activeTab, searchQuery])
 
   useEffect(() => {
     fetch('/api/features')
@@ -66,28 +102,16 @@ export default function GalleryPage() {
       .catch(() => {})
   }, [])
 
-  useEffect(() => {
-    if (activeTab === 'images') {
-      fetchAssets()
-    } else if (activeTab === 'trial') {
-      fetchTrialAssets()
-    } else if (activeTab === 'animations') {
-      fetchAnimations()
-    } else {
-      fetchComics()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, activeTab])
-
-  const fetchAssets = async () => {
+  const fetchAssets = async (pageOverride?: number) => {
+    const p = pageOverride ?? page
     try {
       setLoading(true)
-      // 图片案例：公开且排除试用
-      const response = await fetch(`/api/assets?page=${page}&limit=${pageSize}&publicOnly=true&excludeTrial=true`)
+      const q = searchQuery ? `&q=${encodeURIComponent(searchQuery)}` : ''
+      const response = await fetch(`/api/assets?page=${p}&limit=${pageSize}&publicOnly=true&excludeTrial=true${q}`)
 
       if (response.ok) {
         const data = await response.json()
-        if (page === 1) {
+        if (p === 1) {
           setAssets(data.assets || [])
         } else {
           setAssets((prev) => [...prev, ...(data.assets || [])])
@@ -101,14 +125,16 @@ export default function GalleryPage() {
     }
   }
 
-  const fetchTrialAssets = async () => {
+  const fetchTrialAssets = async (pageOverride?: number) => {
+    const p = pageOverride ?? page
     try {
       setLoading(true)
-      const response = await fetch(`/api/assets?page=${page}&limit=${pageSize}&trialOnly=true`)
+      const q = searchQuery ? `&q=${encodeURIComponent(searchQuery)}` : ''
+      const response = await fetch(`/api/assets?page=${p}&limit=${pageSize}&trialOnly=true${q}`)
 
       if (response.ok) {
         const data = await response.json()
-        if (page === 1) {
+        if (p === 1) {
           setTrialAssets(data.assets || [])
         } else {
           setTrialAssets((prev) => [...prev, ...(data.assets || [])])
@@ -122,14 +148,16 @@ export default function GalleryPage() {
     }
   }
 
-  const fetchComics = async () => {
+  const fetchComics = async (pageOverride?: number) => {
+    const p = pageOverride ?? page
     try {
       setLoading(true)
-      const response = await fetch(`/api/comics?page=${page}&limit=${pageSize}`)
+      const q = searchQuery ? `&q=${encodeURIComponent(searchQuery)}` : ''
+      const response = await fetch(`/api/comics?page=${p}&limit=${pageSize}${q}`)
 
       if (response.ok) {
         const data = await response.json()
-        if (page === 1) {
+        if (p === 1) {
           setComics(data.comics || [])
         } else {
           setComics((prev) => [...prev, ...(data.comics || [])])
@@ -143,14 +171,16 @@ export default function GalleryPage() {
     }
   }
 
-  const fetchAnimations = async () => {
+  const fetchAnimations = async (pageOverride?: number) => {
+    const p = pageOverride ?? page
     try {
       setLoading(true)
-      const response = await fetch(`/api/animations?page=${page}&limit=${pageSize}`)
+      const q = searchQuery ? `&q=${encodeURIComponent(searchQuery)}` : ''
+      const response = await fetch(`/api/animations?page=${p}&limit=${pageSize}${q}`)
 
       if (response.ok) {
         const data = await response.json()
-        if (page === 1) {
+        if (p === 1) {
           setAnimations(data.animations || [])
         } else {
           setAnimations((prev) => [...prev, ...(data.animations || [])])
@@ -219,6 +249,30 @@ export default function GalleryPage() {
     }
   }
 
+  const handleDownloadAnimation = async (anim: Animation) => {
+    if (!anim.resultImageUrl) return
+    setDownloadingId(anim.id)
+    try {
+      const res = await fetch(anim.resultImageUrl, { cache: 'no-store' })
+      const text = await res.text()
+      const isH5 = anim.format === 'h5'
+      const mime = isH5 ? 'text/html' : 'image/svg+xml'
+      const ext = isH5 ? 'html' : 'svg'
+      const blob = new Blob([text], { type: mime })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `animation-${anim.id}.${ext}`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('下载失败:', e)
+      window.open(anim.resultImageUrl!, '_blank')
+    } finally {
+      setDownloadingId(null)
+    }
+  }
+
   const handleDeleteAnimation = async (animationId: string) => {
     if (!allowDelete || deletingId) return
     if (!confirm('确定要删除这条动画案例吗？')) return
@@ -245,48 +299,64 @@ export default function GalleryPage() {
         {/* 内容面板：移动端内部滚动，导航保持固定可见 */}
         <div className="h-full max-w-screen-2xl mx-auto">
           <div className="h-full bg-gray-50 rounded-xl shadow-sm border border-white/50 px-3 sm:px-4 lg:px-6 py-4 sm:py-6 flex flex-col min-h-0">
-            {/* 标签页切换 */}
-            <div className="mb-4 flex gap-2 border-b border-gray-200">
-              <button
-                onClick={() => handleTabChange('comics')}
-                className={`flex-1 px-3 py-2 text-sm font-medium transition-colors ${
-                  activeTab === 'comics'
-                    ? 'text-orange-600 border-b-2 border-orange-600'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                漫画案例
-              </button>
-              <button
-                onClick={() => handleTabChange('animations')}
-                className={`flex-1 px-3 py-2 text-sm font-medium transition-colors ${
-                  activeTab === 'animations'
-                    ? 'text-orange-600 border-b-2 border-orange-600'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                动画案例
-              </button>
-              <button
-                onClick={() => handleTabChange('images')}
-                className={`flex-1 px-3 py-2 text-sm font-medium transition-colors ${
-                  activeTab === 'images'
-                    ? 'text-orange-600 border-b-2 border-orange-600'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                图片案例
-              </button>
-              <button
-                onClick={() => handleTabChange('trial')}
-                className={`flex-1 px-3 py-2 text-sm font-medium transition-colors ${
-                  activeTab === 'trial'
-                    ? 'text-orange-600 border-b-2 border-orange-600'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                试用案例
-              </button>
+            {/* 标签页切换 + 搜索（同一行，搜索靠右） */}
+            <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-gray-200 pb-3">
+              <div className="flex gap-2 flex-1 flex-wrap min-w-0">
+                <button
+                  onClick={() => handleTabChange('comics')}
+                  className={`flex-1 min-w-[4rem] px-3 py-2 text-sm font-medium transition-colors ${
+                    activeTab === 'comics'
+                      ? 'text-orange-600 border-b-2 border-orange-600'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  漫画案例
+                </button>
+                <button
+                  onClick={() => handleTabChange('animations')}
+                  className={`flex-1 min-w-[4rem] px-3 py-2 text-sm font-medium transition-colors ${
+                    activeTab === 'animations'
+                      ? 'text-orange-600 border-b-2 border-orange-600'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  动画案例
+                </button>
+                <button
+                  onClick={() => handleTabChange('images')}
+                  className={`flex-1 min-w-[4rem] px-3 py-2 text-sm font-medium transition-colors ${
+                    activeTab === 'images'
+                      ? 'text-orange-600 border-b-2 border-orange-600'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  图片案例
+                </button>
+                <button
+                  onClick={() => handleTabChange('trial')}
+                  className={`flex-1 min-w-[4rem] px-3 py-2 text-sm font-medium transition-colors ${
+                    activeTab === 'trial'
+                      ? 'text-orange-600 border-b-2 border-orange-600'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  试用案例
+                </button>
+              </div>
+              <input
+                type="search"
+                placeholder="搜索案例..."
+                value={searchKeyword}
+                onChange={(e) => setSearchKeyword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    setSearchQuery(searchKeyword.trim())
+                  }
+                }}
+                className="w-full sm:w-44 lg:w-56 flex-shrink-0 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 placeholder-gray-400"
+                aria-label="搜索案例"
+              />
             </div>
 
             <div className="flex-1 overflow-y-auto min-h-0">
@@ -347,6 +417,13 @@ export default function GalleryPage() {
                     >
                       去模型试用
                     </Link>
+                  </div>
+                </div>
+              ) : searchQuery && !loading && ((activeTab === 'images' && assets.length === 0) || (activeTab === 'trial' && trialAssets.length === 0) || (activeTab === 'comics' && comics.length === 0) || (activeTab === 'animations' && animations.length === 0)) ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-center py-10">
+                    <p className="text-gray-600 text-lg">没有找到匹配「{searchQuery}」的案例</p>
+                    <p className="text-sm text-gray-500 mt-2">试试其他关键词或清空搜索</p>
                   </div>
                 </div>
               ) : (
@@ -592,14 +669,28 @@ export default function GalleryPage() {
                           {(anim.resultImageUrl || allowDelete) && (
                             <div className="px-3 sm:px-4 pb-3 sm:pb-4 flex-shrink-0 space-y-2">
                               {anim.resultImageUrl && (
-                                <a
-                                  href={anim.resultImageUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="block w-full px-3 py-2 text-xs sm:text-sm text-center bg-teal-500 hover:bg-teal-600 text-white rounded-lg transition-colors"
-                                >
-                                  打开动画
-                                </a>
+                                <div className="flex gap-2">
+                                  <a
+                                    href={anim.resultImageUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex-1 px-3 py-2 text-xs sm:text-sm text-center bg-teal-500 hover:bg-teal-600 text-white rounded-lg transition-colors"
+                                  >
+                                    打开动画
+                                  </a>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault()
+                                      handleDownloadAnimation(anim)
+                                    }}
+                                    disabled={downloadingId === anim.id}
+                                    className="flex-1 px-3 py-2 text-xs sm:text-sm text-center bg-gray-500 hover:bg-gray-600 disabled:opacity-50 text-white rounded-lg transition-colors"
+                                    title="下载动画文件"
+                                  >
+                                    {downloadingId === anim.id ? '下载中...' : '下载'}
+                                  </button>
+                                </div>
                               )}
                               {allowDelete && (
                                 <button

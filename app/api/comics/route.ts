@@ -10,14 +10,20 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '12')
+    const q = (searchParams.get('q') || '').trim()
     const skip = (page - 1) * limit
 
+    const where: any = {
+      type: 'comic',
+      status: 'completed',
+      resultImageUrl: { not: null },
+    }
+    if (q.length > 0) {
+      where.description = { contains: q, mode: 'insensitive' }
+    }
+
     const tasks = await prisma.task.findMany({
-      where: {
-        type: 'comic',
-        status: 'completed',
-        resultImageUrl: { not: null },
-      },
+      where,
       orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
