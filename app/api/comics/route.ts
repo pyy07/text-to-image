@@ -60,6 +60,7 @@ export async function GET(request: NextRequest) {
         resultImageUrl,
         createdAt: task.createdAt,
         user: task.user,
+        promptText: task.description,
       }
     })
 

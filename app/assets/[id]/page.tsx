@@ -27,6 +27,7 @@ export default function AssetDetailPage() {
   const [asset, setAsset] = useState<Asset | null>(null)
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
+  const [copiedPrompt, setCopiedPrompt] = useState(false)
 
   const handleBack = () => {
     // 直接使用浏览器历史记录返回上一页
@@ -62,6 +63,17 @@ export default function AssetDetailPage() {
       await navigator.clipboard.writeText(asset.imageUrl)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
+    } catch (error) {
+      console.error('复制失败:', error)
+    }
+  }
+
+  const handleCopyPrompt = async () => {
+    if (!asset?.description) return
+    try {
+      await navigator.clipboard.writeText(asset.description)
+      setCopiedPrompt(true)
+      setTimeout(() => setCopiedPrompt(false), 2000)
     } catch (error) {
       console.error('复制失败:', error)
     }
@@ -146,6 +158,38 @@ export default function AssetDetailPage() {
                     )}
                   </div>
                 </div>
+
+                {/* 完整提示词 */}
+                {asset.description && (
+                  <div className="mb-4 sm:mb-6">
+                    <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                      <span className="text-sm font-medium text-gray-700">完整提示词</span>
+                      <button
+                        onClick={handleCopyPrompt}
+                        className="px-3 py-1.5 text-sm bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-lg transition-colors flex items-center gap-2"
+                      >
+                        {copiedPrompt ? (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            已复制
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            复制提示词
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <pre className="p-3 sm:p-4 bg-gray-50 rounded-lg overflow-auto text-xs sm:text-sm max-h-[280px] border border-gray-200 whitespace-pre-wrap break-words">
+                      {asset.description}
+                    </pre>
+                  </div>
+                )}
 
                 <div className="mb-4 sm:mb-6">
                   <div className="flex items-center justify-between mb-2 flex-wrap gap-2">

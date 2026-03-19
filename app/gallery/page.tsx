@@ -26,6 +26,7 @@ interface Comic {
   articleTitle?: string | null
   resultImageUrl: string | null
   createdAt: string
+  promptText?: string
   user?: {
     id: string
     nickname?: string
@@ -60,9 +61,21 @@ export default function GalleryPage() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [searchKeyword, setSearchKeyword] = useState('')
   const [searchQuery, setSearchQuery] = useState('') // 防抖后用于请求
+  const [copiedId, setCopiedId] = useState<string | null>(null)
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevSearchQueryRef = useRef(searchQuery)
   const pageSize = 12
+
+  const copyPrompt = async (text: string, id: string) => {
+    if (!text?.trim()) return
+    try {
+      await navigator.clipboard.writeText(text.trim())
+      setCopiedId(id)
+      setTimeout(() => setCopiedId(null), 2000)
+    } catch {
+      // ignore
+    }
+  }
 
   useEffect(() => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
@@ -481,8 +494,18 @@ export default function GalleryPage() {
                               </div>
                             </div>
                           </Link>
-                          {(asset.imageUrl || allowDelete) && (
-                            <div className="px-3 sm:px-4 pb-3 sm:pb-4 space-y-2 flex-shrink-0">
+                          <div className="px-3 sm:px-4 pb-3 sm:pb-4 space-y-2 flex-shrink-0">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  copyPrompt(asset.description, asset.id)
+                                }}
+                                className="block w-full px-3 py-2 text-xs sm:text-sm text-center bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors border border-gray-300"
+                              >
+                                {copiedId === asset.id ? '已复制提示词' : '复制提示词'}
+                              </button>
                               {asset.imageUrl && (
                                 <>
                                   <Link
@@ -519,7 +542,6 @@ export default function GalleryPage() {
                                 </button>
                               )}
                             </div>
-                          )}
                         </div>
                       ))}
                     </div>
@@ -574,8 +596,18 @@ export default function GalleryPage() {
                               </div>
                             </div>
                           </Link>
-                          {(asset.imageUrl || allowDelete) && (
-                            <div className="px-3 sm:px-4 pb-3 sm:pb-4 space-y-2 flex-shrink-0">
+                          <div className="px-3 sm:px-4 pb-3 sm:pb-4 space-y-2 flex-shrink-0">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  copyPrompt(asset.description, asset.id)
+                                }}
+                                className="block w-full px-3 py-2 text-xs sm:text-sm text-center bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors border border-gray-300"
+                              >
+                                {copiedId === asset.id ? '已复制提示词' : '复制提示词'}
+                              </button>
                               {asset.imageUrl && (
                                 <>
                                   <Link
@@ -612,7 +644,6 @@ export default function GalleryPage() {
                                 </button>
                               )}
                             </div>
-                          )}
                         </div>
                       ))}
                     </div>
@@ -666,8 +697,18 @@ export default function GalleryPage() {
                               </div>
                             </div>
                           </a>
-                          {(anim.resultImageUrl || allowDelete) && (
-                            <div className="px-3 sm:px-4 pb-3 sm:pb-4 flex-shrink-0 space-y-2">
+                          <div className="px-3 sm:px-4 pb-3 sm:pb-4 flex-shrink-0 space-y-2">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  copyPrompt(anim.userDescription, anim.id)
+                                }}
+                                className="block w-full px-3 py-2 text-xs sm:text-sm text-center bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors border border-gray-300"
+                              >
+                                {copiedId === anim.id ? '已复制提示词' : '复制提示词'}
+                              </button>
                               {anim.resultImageUrl && (
                                 <div className="flex gap-2">
                                   <a
@@ -706,7 +747,6 @@ export default function GalleryPage() {
                                 </button>
                               )}
                             </div>
-                          )}
                         </div>
                       ))}
                     </div>
@@ -798,8 +838,18 @@ export default function GalleryPage() {
                               </div>
                             </>
                           )}
-                          {(comic.resultImageUrl || allowDelete) && (
-                            <div className="px-3 sm:px-4 pb-3 sm:pb-4 flex-shrink-0 space-y-2">
+                          <div className="px-3 sm:px-4 pb-3 sm:pb-4 flex-shrink-0 space-y-2">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  copyPrompt(comic.promptText ?? comic.articleTitle ?? '', comic.id)
+                                }}
+                                className="block w-full px-3 py-2 text-xs sm:text-sm text-center bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors border border-gray-300"
+                              >
+                                {copiedId === comic.id ? '已复制提示词' : '复制提示词'}
+                              </button>
                               {comic.resultImageUrl && (
                                 <a
                                   href={comic.resultImageUrl}
@@ -823,7 +873,6 @@ export default function GalleryPage() {
                                 </button>
                               )}
                             </div>
-                          )}
                         </div>
                       ))}
                     </div>
